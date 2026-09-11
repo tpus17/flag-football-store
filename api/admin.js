@@ -88,12 +88,29 @@ export default async function handler(req, res) {
 
         for (const v of incoming) {
           if (v.id) {
-            await admin.from('product_variants').update({ size_label: v.size_label, stock: v.stock, sort_order: v.sort_order }).eq('id', v.id)
+            await admin.from('product_variants').update({ size_label: v.size_label, sort_order: v.sort_order }).eq('id', v.id)
           } else {
-            await admin.from('product_variants').insert({ product_id: productId, size_label: v.size_label, stock: v.stock, sort_order: v.sort_order })
+            await admin.from('product_variants').insert({ product_id: productId, size_label: v.size_label, sort_order: v.sort_order })
           }
         }
         return res.json({ ok: true, id: productId })
+      }
+
+      case 'upload_image': {
+        const dataUrl = body.data_url || ''
+        const m = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/)
+        if (!m) return res.status(400).json({ error: 'No valid image provided.' })
+        const contentType = m[1]
+        const buffer = Buffer.from(m[2], 'base64')
+        if (buffer.length > 4_000_000) return res.status(413).json({ error: 'Image too large — please use a smaller photo.' })
+        // Ensure the public bucket exists (no-op if it already does).
+        await admin.storage.createBucket('product-images', { public: true }).catch(() => {})
+        const ext = (contentType.split('/')[1] || 'jpg').replace('jpeg', 'jpg').replace('+xml', '')
+        const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+        const { error: upErr } = await admin.storage.from('product-images').upload(path, buffer, { contentType, upsert: false })
+        if (upErr) return res.status(500).json({ error: upErr.message })
+        const { data: pub } = admin.storage.from('product-images').getPublicUrl(path)
+        return res.json({ ok: true, url: pub.publicUrl })
       }
 
       case 'delete_product': {

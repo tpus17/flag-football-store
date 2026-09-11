@@ -15,7 +15,7 @@ export default function Store({ settings }) {
   async function load() {
     const { data, error } = await supabase
       .from('products')
-      .select('id, name, description, price_cents, image_url, sort_order, product_variants(id, size_label, stock, sort_order)')
+      .select('id, name, description, price_cents, image_url, sort_order, product_variants(id, size_label, sort_order)')
       .eq('active', true)
       .order('sort_order')
     if (error) { console.error(error); setProducts([]); return }
@@ -32,7 +32,6 @@ export default function Store({ settings }) {
       const key = `${product.id}:${variant.id}`
       const existing = prev.find((i) => i.key === key)
       if (existing) {
-        if (existing.qty >= variant.stock) return prev
         return prev.map((i) => (i.key === key ? { ...i, qty: i.qty + 1 } : i))
       }
       return [...prev, {
@@ -43,7 +42,6 @@ export default function Store({ settings }) {
         size_label: variant.size_label,
         unit_price_cents: product.price_cents,
         qty: 1,
-        max_stock: variant.stock,
       }]
     })
     setOpen(true)
@@ -52,7 +50,7 @@ export default function Store({ settings }) {
   const setQty = (key, qty) =>
     setCart((prev) => prev.flatMap((i) => {
       if (i.key !== key) return [i]
-      const q = Math.max(0, Math.min(qty, i.max_stock))
+      const q = Math.max(0, qty)
       return q === 0 ? [] : [{ ...i, qty: q }]
     }))
 
@@ -139,11 +137,9 @@ function GoalBar({ settings }) {
 
 function ProductCard({ product, onAdd }) {
   const variants = product.product_variants || []
-  const inStock = variants.filter((v) => v.stock > 0)
   const hasRealSizes = !(variants.length === 1 && variants[0].size_label === 'One Size')
-  const [sel, setSel] = useState(inStock[0]?.id || variants[0]?.id || null)
+  const [sel, setSel] = useState(variants[0]?.id || null)
   const selVariant = variants.find((v) => v.id === sel)
-  const soldOut = inStock.length === 0
 
   return (
     <div className="card">
@@ -161,9 +157,7 @@ function ProductCard({ product, onAdd }) {
               <button
                 key={v.id}
                 className={`size-pill ${sel === v.id ? 'active' : ''}`}
-                disabled={v.stock <= 0}
                 onClick={() => setSel(v.id)}
-                title={v.stock <= 0 ? 'Sold out' : `${v.stock} left`}
               >
                 {v.size_label}
               </button>
@@ -171,22 +165,13 @@ function ProductCard({ product, onAdd }) {
           </div>
         )}
 
-        {soldOut ? (
-          <div className="soldout">Sold out</div>
-        ) : (
-          <>
-            <button
-              className="btn block"
-              disabled={!selVariant || selVariant.stock <= 0}
-              onClick={() => onAdd(product, selVariant)}
-            >
-              Add to cart
-            </button>
-            {selVariant && selVariant.stock <= 5 && (
-              <div className="stock-note">Only {selVariant.stock} left{hasRealSizes ? ` in ${selVariant.size_label}` : ''}</div>
-            )}
-          </>
-        )}
+        <button
+          className="btn block"
+          disabled={!selVariant}
+          onClick={() => onAdd(product, selVariant)}
+        >
+          Add to cart
+        </button>
       </div>
     </div>
   )
@@ -251,7 +236,7 @@ function CartDrawer({ cart, settings, onClose, setQty, onOrdered, reload }) {
                     <div className="qtybox">
                       <button onClick={() => setQty(i.key, i.qty - 1)}>−</button>
                       <span>{i.qty}</span>
-                      <button onClick={() => setQty(i.key, i.qty + 1)} disabled={i.qty >= i.max_stock}>+</button>
+                      <button onClick={() => setQty(i.key, i.qty + 1)}>+</button>
                     </div>
                   </div>
                 ))}

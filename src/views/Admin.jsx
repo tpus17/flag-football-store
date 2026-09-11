@@ -1,6 +1,30 @@
 import React, { useEffect, useState } from 'react'
 import { money, dollarsToCents, adminApi, getPass, setPass, clearPass } from '../lib'
 
+// Load an image file, scale it down to fit maxDim, and return a JPEG data URL.
+// Keeps uploads small + fast (phone photos can be huge).
+function resizeImage(file, maxDim, quality) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    const img = new Image()
+    reader.onload = () => { img.src = reader.result }
+    reader.onerror = () => reject(new Error('Could not read file'))
+    img.onerror = () => reject(new Error('Not a valid image'))
+    img.onload = () => {
+      let { width, height } = img
+      if (width >= height && width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim }
+      else if (height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim }
+      const canvas = document.createElement('canvas')
+      canvas.width = width; canvas.height = height
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, width, height) // flatten transparency for JPEG
+      ctx.drawImage(img, 0, 0, width, height)
+      resolve(canvas.toDataURL('image/jpeg', quality))
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
 export default function Admin({ settings, onSettingsChange }) {
   const [authed, setAuthed] = useState(!!getPass())
   const [tab, setTab] = useState('orders')
@@ -164,7 +188,7 @@ function Products() {
 
   return (
     <>
-      <button className="btn" onClick={() => setEditing({ isNew: true, name: '', description: '', price_dollars: '', image_url: '', active: true, sort_order: (products.length + 1), variants: [{ size_label: 'One Size', stock: 0 }] })}>+ New product</button>
+      <button className="btn" onClick={() => setEditing({ isNew: true, name: '', description: '', price_dollars: '', image_url: '', active: true, sort_order: (products.length + 1), variants: [{ size_label: 'One Size' }] })}>+ New product</button>
       <div className="mt">
         {products.map((p) => (
           <div className="admin-card" key={p.id}>
@@ -175,7 +199,7 @@ function Products() {
               <span className="price">{money(p.price_cents)}</span>
             </div>
             <div className="muted mt" style={{ fontSize: '0.86rem' }}>
-              {(p.product_variants || []).map((v) => `${v.size_label}: ${v.stock}`).join(' · ') || 'No sizes'}
+              {(p.product_variants || []).map((v) => v.size_label).join(' · ') || 'One size'}
             </div>
             <div className="row mt">
               <button className="btn ghost sm" onClick={() => setEditing(toEditable(p))}>Edit</button>
@@ -197,7 +221,7 @@ function toEditable(p) {
     active: p.active,
     sort_order: p.sort_order,
     variants: (p.product_variants || []).slice().sort((a, b) => a.sort_order - b.sort_order)
-      .map((v) => ({ id: v.id, size_label: v.size_label, stock: v.stock })),
+      .map((v) => ({ id: v.id, size_label: v.size_label })),
   }
 }
 
@@ -207,8 +231,21 @@ function ProductEditor({ product, onDone }) {
   const [busy, setBusy] = useState(false)
   const set = (k, v) => setP((x) => ({ ...x, [k]: v }))
   const setVar = (i, k, v) => setP((x) => ({ ...x, variants: x.variants.map((vr, j) => j === i ? { ...vr, [k]: v } : vr) }))
-  const addVar = () => setP((x) => ({ ...x, variants: [...x.variants, { size_label: '', stock: 0 }] }))
+  const addVar = () => setP((x) => ({ ...x, variants: [...x.variants, { size_label: '' }] }))
   const rmVar = (i) => setP((x) => ({ ...x, variants: x.variants.filter((_, j) => j !== i) }))
+  const [uploading, setUploading] = useState(false)
+
+  async function uploadPhoto(file) {
+    if (!file) return
+    setErr(''); setUploading(true)
+    try {
+      const dataUrl = await resizeImage(file, 1000, 0.82)
+      const { url } = await adminApi('upload_image', { data_url: dataUrl, filename: file.name })
+      set('image_url', url)
+    } catch (e) {
+      setErr('Photo upload failed: ' + e.message)
+    } finally { setUploading(false) }
+  }
 
   async function save() {
     setErr('')
@@ -228,7 +265,6 @@ function ProductEditor({ product, onDone }) {
           variants: p.variants.map((v, i) => ({
             id: v.id || null,
             size_label: (v.size_label || 'One Size').trim() || 'One Size',
-            stock: Math.max(0, Number(v.stock) || 0),
             sort_order: i + 1,
           })),
         },
@@ -260,8 +296,17 @@ function ProductEditor({ product, onDone }) {
       <label className="field">Description</label>
       <textarea rows={2} value={p.description} onChange={(e) => set('description', e.target.value)} />
 
-      <label className="field">Image URL (optional)</label>
-      <input value={p.image_url} onChange={(e) => set('image_url', e.target.value)} placeholder="https://…" />
+      <label className="field">Photo (optional)</label>
+      <div className="row" style={{ alignItems: 'center' }}>
+        {p.image_url && <img src={p.image_url} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />}
+        <label className="btn ghost sm" style={{ cursor: uploading ? 'default' : 'pointer' }}>
+          {uploading ? 'Uploading…' : (p.image_url ? 'Change photo' : '📷 Upload photo')}
+          <input type="file" accept="image/*" hidden disabled={uploading} onChange={(e) => uploadPhoto(e.target.files?.[0])} />
+        </label>
+        {p.image_url && <button className="btn ghost sm" type="button" onClick={() => set('image_url', '')}>Remove</button>}
+      </div>
+      <p className="hint">Pick a photo from this device — it’s resized and hosted for you. Or paste an image URL below.</p>
+      <input value={p.image_url} onChange={(e) => set('image_url', e.target.value)} placeholder="https://… (optional image URL)" />
 
       <div className="two-col mt">
         <div>
@@ -277,12 +322,11 @@ function ProductEditor({ product, onDone }) {
         </div>
       </div>
 
-      <label className="field mt">Sizes & stock</label>
-      <p className="hint">Use one row called “One Size” if the item isn’t sized. Stock counts down automatically as orders come in.</p>
+      <label className="field mt">Sizes</label>
+      <p className="hint">Add each size you offer. Use a single row named “One Size” if the item isn’t sized.</p>
       {p.variants.map((v, i) => (
         <div className="row mt" key={i}>
-          <input style={{ flex: 2 }} value={v.size_label} onChange={(e) => setVar(i, 'size_label', e.target.value)} placeholder="Size (S, M, L…)" />
-          <input style={{ flex: 1 }} type="number" min="0" value={v.stock} onChange={(e) => setVar(i, 'stock', e.target.value)} placeholder="Qty" />
+          <input style={{ flex: 1 }} value={v.size_label} onChange={(e) => setVar(i, 'size_label', e.target.value)} placeholder="Size (S, M, L…)" />
           <button className="btn danger sm" onClick={() => rmVar(i)}>✕</button>
         </div>
       ))}

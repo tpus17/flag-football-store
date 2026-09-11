@@ -1,5 +1,5 @@
 /*
- * POST /api/order      → place an order (validates prices + stock server-side).
+ * POST /api/order      → place an order (validates prices server-side).
  * GET  /api/order?stats=1 → public fundraising total (paid orders only).
  */
 import { admin, readBody } from './_lib.js'
@@ -40,7 +40,7 @@ export default async function handler(req, res) {
   const variantIds = [...wanted.keys()]
   const { data: variants, error: vErr } = await admin
     .from('product_variants')
-    .select('id, size_label, stock, product_id, products(name, price_cents, active)')
+    .select('id, size_label, product_id, products(name, price_cents, active)')
     .in('id', variantIds)
   if (vErr) return res.status(500).json({ error: vErr.message })
   if (!variants || variants.length !== variantIds.length)
@@ -51,21 +51,9 @@ export default async function handler(req, res) {
   for (const v of variants) {
     const qty = wanted.get(v.id)
     if (!v.products?.active) return res.status(400).json({ error: `"${v.products?.name || 'An item'}" is no longer available.` })
-    if (v.stock < qty) return res.status(409).json({ error: `Not enough stock for ${v.products.name} (${v.size_label}). Only ${v.stock} left.` })
     const unit = v.products.price_cents
     total += unit * qty
     lines.push({ variant_id: v.id, product_id: v.product_id, product_name: v.products.name, size_label: v.size_label, unit_price_cents: unit, qty })
-  }
-
-  // Decrement stock atomically per variant; roll back on any failure.
-  const done = []
-  for (const l of lines) {
-    const { data: ok, error } = await admin.rpc('decrement_stock', { p_variant_id: l.variant_id, p_qty: l.qty })
-    if (error || !ok) {
-      for (const d of done) await admin.rpc('decrement_stock', { p_variant_id: d.variant_id, p_qty: -d.qty })
-      return res.status(409).json({ error: `Sorry, ${l.product_name} (${l.size_label}) just sold out. Please adjust your cart.` })
-    }
-    done.push(l)
   }
 
   // Create the order.
@@ -78,10 +66,7 @@ export default async function handler(req, res) {
     total_cents: total,
   }).select().single()
 
-  if (oErr) {
-    for (const d of done) await admin.rpc('decrement_stock', { p_variant_id: d.variant_id, p_qty: -d.qty })
-    return res.status(500).json({ error: 'Could not save order. Please try again.' })
-  }
+  if (oErr) return res.status(500).json({ error: 'Could not save order. Please try again.' })
 
   const itemRows = lines.map((l) => ({ ...l, order_id: order.id }))
   const { error: iErr } = await admin.from('order_items').insert(itemRows)
