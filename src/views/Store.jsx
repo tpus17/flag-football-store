@@ -95,7 +95,8 @@ export default function Store({ settings }) {
       </div>
 
       <div className="footer">
-        {settings?.team_name || 'C-Side Flag Football'} · Thanks for supporting our team!
+        <div>{settings?.team_name || 'C-Side Flag Football'} · Thanks for supporting our team!</div>
+        <div className="footer-links"><a href="#/admin">Admin</a></div>
       </div>
 
       {open && (

@@ -247,6 +247,9 @@ th { background: #eef2ef; font-size: 0.78rem; text-transform: uppercase; letter-
 .mt { margin-top: 12px; }
 .muted { color: var(--muted); }
 .footer { text-align: center; padding: 30px 16px; color: var(--muted); font-size: 0.82rem; }
+.footer-links { margin-top: 8px; }
+.footer-links a { color: var(--muted); text-decoration: none; font-weight: 600; }
+.footer-links a:hover { color: var(--accent-dark); text-decoration: underline; }
 
 @media (max-width: 560px) {
   .two-col { grid-template-columns: 1fr; }
