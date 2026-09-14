@@ -140,6 +140,8 @@ a { color: var(--accent-dark); }
 .price { font-weight: 800; font-size: 1.1rem; color: var(--accent-dark); }
 .row { display: flex; gap: 8px; align-items: center; }
 .sizes { display: flex; flex-wrap: wrap; gap: 6px; }
+.opt-group { margin-top: 2px; }
+.opt-label { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
 .size-pill {
   border: 1.5px solid var(--line);
   background: #fff;
@@ -266,6 +268,8 @@ th { background: #eef2ef; font-size: 0.78rem; text-transform: uppercase; letter-
 .img-actions button { width: 26px; height: 24px; border: 1px solid var(--line); background: #fff; border-radius: 6px; font-size: 0.75rem; line-height: 1; padding: 0; cursor: pointer; }
 .img-actions button:disabled { opacity: 0.35; cursor: default; }
 .img-actions .rm { color: var(--danger); border-color: #f2c9c4; }
+
+.opt-editor { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-top: 10px; background: #faf8f8; }
 
 .center { text-align: center; }
 .mt { margin-top: 12px; }

@@ -6,7 +6,7 @@ export const money = (cents) =>
 export const dollarsToCents = (v) => Math.round(Number(v || 0) * 100)
 
 // ---------- Cart (localStorage) ----------
-const CART_KEY = 'ffstore_cart_v1'
+const CART_KEY = 'ffstore_cart_v2'
 
 export function loadCart() {
   try {

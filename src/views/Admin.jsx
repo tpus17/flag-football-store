@@ -154,7 +154,7 @@ function Orders() {
                   </td>
                   <td>
                     {(o.order_items || []).map((it) => (
-                      <div key={it.id}>{it.qty}× {it.product_name}{it.size_label !== 'One Size' ? ` (${it.size_label})` : ''}</div>
+                      <div key={it.id}>{it.qty}× {it.product_name}{it.size_label ? ` — ${it.size_label}` : ''}</div>
                     ))}
                   </td>
                   <td><b>{money(o.total_cents)}</b></td>
@@ -188,7 +188,7 @@ function Products() {
 
   return (
     <>
-      <button className="btn" onClick={() => setEditing({ isNew: true, name: '', description: '', price_dollars: '', image_url: '', active: true, sort_order: (products.length + 1), variants: [{ size_label: 'One Size' }] })}>+ New product</button>
+      <button className="btn" onClick={() => setEditing({ isNew: true, name: '', description: '', price_dollars: '', image_url: '', active: true, sort_order: (products.length + 1), options: [] })}>+ New product</button>
       <div className="mt">
         {products.map((p) => (
           <div className="admin-card" key={p.id}>
@@ -199,7 +199,7 @@ function Products() {
               <span className="price">{money(p.price_cents)}</span>
             </div>
             <div className="muted mt" style={{ fontSize: '0.86rem' }}>
-              {(p.product_variants || []).map((v) => v.size_label).join(' · ') || 'One size'}
+              {(p.options || []).map((g) => `${g.name}: ${(g.choices || []).join('/')}`).join('   ·   ') || 'No options'}
             </div>
             <div className="row mt">
               <button className="btn ghost sm" onClick={() => setEditing(toEditable(p))}>Edit</button>
@@ -220,8 +220,7 @@ function toEditable(p) {
     images: (Array.isArray(p.images) && p.images.length ? p.images : (p.image_url ? [p.image_url] : [])),
     active: p.active,
     sort_order: p.sort_order,
-    variants: (p.product_variants || []).slice().sort((a, b) => a.sort_order - b.sort_order)
-      .map((v) => ({ id: v.id, size_label: v.size_label })),
+    options: (Array.isArray(p.options) ? p.options : []).map((g) => ({ name: g.name || '', choicesText: (g.choices || []).join(', ') })),
   }
 }
 
@@ -230,9 +229,10 @@ function ProductEditor({ product, onDone }) {
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const set = (k, v) => setP((x) => ({ ...x, [k]: v }))
-  const setVar = (i, k, v) => setP((x) => ({ ...x, variants: x.variants.map((vr, j) => j === i ? { ...vr, [k]: v } : vr) }))
-  const addVar = () => setP((x) => ({ ...x, variants: [...x.variants, { size_label: '' }] }))
-  const rmVar = (i) => setP((x) => ({ ...x, variants: x.variants.filter((_, j) => j !== i) }))
+  const setGroup = (i, k, v) => setP((x) => ({ ...x, options: x.options.map((g, j) => j === i ? { ...g, [k]: v } : g) }))
+  const addGroup = (name, choicesText) => setP((x) => ({ ...x, options: [...x.options, { name, choicesText }] }))
+  const rmGroup = (i) => setP((x) => ({ ...x, options: x.options.filter((_, j) => j !== i) }))
+  const hasGroup = (name) => p.options.some((g) => (g.name || '').toLowerCase() === name.toLowerCase())
   const [uploading, setUploading] = useState(false)
   const addImg = (url) => setP((x) => ({ ...x, images: [...(x.images || []), url] }))
   const rmImg = (i) => setP((x) => ({ ...x, images: x.images.filter((_, j) => j !== i) }))
@@ -261,7 +261,6 @@ function ProductEditor({ product, onDone }) {
   async function save() {
     setErr('')
     if (!p.name.trim()) return setErr('Name is required.')
-    if (p.variants.length === 0) return setErr('Add at least one size (use "One Size" if not sized).')
     setBusy(true)
     try {
       await adminApi('save_product', {
@@ -273,11 +272,10 @@ function ProductEditor({ product, onDone }) {
           images: p.images || [],
           active: p.active,
           sort_order: Number(p.sort_order) || 0,
-          variants: p.variants.map((v, i) => ({
-            id: v.id || null,
-            size_label: (v.size_label || 'One Size').trim() || 'One Size',
-            sort_order: i + 1,
-          })),
+          options: p.options.map((g) => ({
+            name: (g.name || '').trim(),
+            choices: (g.choicesText || '').split(',').map((s) => s.trim()).filter(Boolean),
+          })).filter((g) => g.name && g.choices.length),
         },
       })
       onDone()
@@ -343,15 +341,23 @@ function ProductEditor({ product, onDone }) {
         </div>
       </div>
 
-      <label className="field mt">Sizes</label>
-      <p className="hint">Add each size you offer. Use a single row named “One Size” if the item isn’t sized.</p>
-      {p.variants.map((v, i) => (
-        <div className="row mt" key={i}>
-          <input style={{ flex: 1 }} value={v.size_label} onChange={(e) => setVar(i, 'size_label', e.target.value)} placeholder="Size (S, M, L…)" />
-          <button className="btn danger sm" onClick={() => rmVar(i)}>✕</button>
+      <label className="field mt">Options</label>
+      <p className="hint">Add the choices shoppers pick from — e.g. Size, Color, Sex. Leave empty for items with no choices (like a one-size hat). Separate choices with commas.</p>
+      {p.options.map((g, i) => (
+        <div className="opt-editor" key={i}>
+          <div className="row">
+            <input style={{ flex: 1 }} value={g.name} onChange={(e) => setGroup(i, 'name', e.target.value)} placeholder="Option name (e.g. Size)" />
+            <button className="btn danger sm" onClick={() => rmGroup(i)}>✕</button>
+          </div>
+          <input className="mt" value={g.choicesText} onChange={(e) => setGroup(i, 'choicesText', e.target.value)} placeholder="Choices, comma-separated (e.g. S, M, L, XL)" />
         </div>
       ))}
-      <button className="btn ghost sm mt" onClick={addVar}>+ Add size</button>
+      <div className="row mt" style={{ flexWrap: 'wrap' }}>
+        {!hasGroup('Size') && <button className="btn ghost sm" onClick={() => addGroup('Size', 'YS, YM, YL, S, M, L, XL')}>+ Size</button>}
+        {!hasGroup('Color') && <button className="btn ghost sm" onClick={() => addGroup('Color', 'Maroon, Gold, Black, White')}>+ Color</button>}
+        {!hasGroup('Sex') && <button className="btn ghost sm" onClick={() => addGroup('Sex', "Men's, Women's, Youth")}>+ Sex</button>}
+        <button className="btn ghost sm" onClick={() => addGroup('', '')}>+ Custom option</button>
+      </div>
 
       {err && <div className="err mt">{err}</div>}
 

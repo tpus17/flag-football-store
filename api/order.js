@@ -27,33 +27,44 @@ export default async function handler(req, res) {
   if (!['venmo', 'zelle', 'cash'].includes(payment_method))
     return res.status(400).json({ error: 'Invalid payment method.' })
 
-  // Collapse duplicate variant lines and validate quantities.
+  // Collapse duplicate lines (same product + same chosen options) and validate quantities.
   const wanted = new Map()
   for (const it of items) {
     const qty = Math.floor(Number(it.qty))
-    if (!it.variant_id || !Number.isFinite(qty) || qty <= 0)
+    if (!it.product_id || !Number.isFinite(qty) || qty <= 0)
       return res.status(400).json({ error: 'Invalid cart item.' })
-    wanted.set(it.variant_id, (wanted.get(it.variant_id) || 0) + qty)
+    const opts = (it.options && typeof it.options === 'object') ? it.options : {}
+    const key = `${it.product_id}|${JSON.stringify(opts)}`
+    const ex = wanted.get(key)
+    if (ex) ex.qty += qty
+    else wanted.set(key, { product_id: it.product_id, options: opts, qty })
   }
 
-  // Look up authoritative prices + product names from the DB (never trust the client).
-  const variantIds = [...wanted.keys()]
-  const { data: variants, error: vErr } = await admin
-    .from('product_variants')
-    .select('id, size_label, product_id, products(name, price_cents, active)')
-    .in('id', variantIds)
-  if (vErr) return res.status(500).json({ error: vErr.message })
-  if (!variants || variants.length !== variantIds.length)
-    return res.status(400).json({ error: 'Some items are no longer available.' })
+  // Look up authoritative prices + names from the DB (never trust the client).
+  const productIds = [...new Set([...wanted.values()].map((w) => w.product_id))]
+  const { data: products, error: pErr } = await admin
+    .from('products')
+    .select('id, name, price_cents, active, options')
+    .in('id', productIds)
+  if (pErr) return res.status(500).json({ error: pErr.message })
+  const byId = Object.fromEntries((products || []).map((p) => [p.id, p]))
 
   const lines = []
   let total = 0
-  for (const v of variants) {
-    const qty = wanted.get(v.id)
-    if (!v.products?.active) return res.status(400).json({ error: `"${v.products?.name || 'An item'}" is no longer available.` })
-    const unit = v.products.price_cents
-    total += unit * qty
-    lines.push({ variant_id: v.id, product_id: v.product_id, product_name: v.products.name, size_label: v.size_label, unit_price_cents: unit, qty })
+  for (const w of wanted.values()) {
+    const prod = byId[w.product_id]
+    if (!prod) return res.status(400).json({ error: 'Some items are no longer available.' })
+    if (!prod.active) return res.status(400).json({ error: `"${prod.name}" is no longer available.` })
+    // Build an option summary in the product's own group order, keeping only valid choices.
+    const groups = Array.isArray(prod.options) ? prod.options : []
+    const cleanOpts = {}
+    const parts = []
+    for (const g of groups) {
+      const val = w.options[g?.name]
+      if (val && Array.isArray(g.choices) && g.choices.includes(val)) { cleanOpts[g.name] = val; parts.push(val) }
+    }
+    total += prod.price_cents * w.qty
+    lines.push({ product_id: prod.id, product_name: prod.name, size_label: parts.join(' · '), options: cleanOpts, unit_price_cents: prod.price_cents, qty: w.qty })
   }
 
   // Create the order.

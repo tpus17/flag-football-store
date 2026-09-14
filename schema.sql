@@ -29,12 +29,14 @@ create table if not exists public.products (
   price_cents int     not null check (price_cents >= 0),
   image_url   text    default '',                 -- cover image (mirrors images[0])
   images      jsonb   not null default '[]'::jsonb, -- ordered list of image URLs (carousel)
+  options     jsonb   not null default '[]'::jsonb, -- [{name, choices:[...]}] e.g. Size / Color / Sex
   active      boolean not null default true,
   sort_order  int     not null default 0,
   created_at  timestamptz not null default now()
 );
--- Migration for an existing project: add the images column if it isn't there yet.
+-- Migrations for an existing project: add columns if they aren't there yet.
 alter table public.products add column if not exists images jsonb not null default '[]'::jsonb;
+alter table public.products add column if not exists options jsonb not null default '[]'::jsonb;
 
 -- ---------- Product variants (sizes / options) ----------
 -- Every product has at least one variant. Use "One Size" when there are no sizes.
@@ -70,11 +72,14 @@ create table if not exists public.order_items (
   product_id      uuid references public.products(id) on delete set null,
   variant_id      uuid references public.product_variants(id) on delete set null,
   product_name    text not null,              -- snapshot at purchase time
-  size_label      text not null default 'One Size',
+  size_label      text not null default '',   -- human-readable option summary (e.g. "M · Maroon · Women's")
+  options         jsonb not null default '{}'::jsonb, -- selected options {name: value}
   unit_price_cents int not null,
   qty             int not null check (qty > 0)
 );
 create index if not exists idx_items_order on public.order_items(order_id);
+-- Migration for an existing project: add the selected-options column if missing.
+alter table public.order_items add column if not exists options jsonb not null default '{}'::jsonb;
 
 -- ============================================================
 --  Row Level Security

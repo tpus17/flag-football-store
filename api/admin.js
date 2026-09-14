@@ -53,7 +53,7 @@ export default async function handler(req, res) {
       case 'list_products': {
         const { data, error } = await admin
           .from('products')
-          .select('*, product_variants(*)')
+          .select('*')
           .order('sort_order')
         if (error) throw error
         return res.json({ products: data })
@@ -62,39 +62,28 @@ export default async function handler(req, res) {
       case 'save_product': {
         const p = body.product
         if (!p?.name?.trim()) return res.status(400).json({ error: 'Name required.' })
-        let productId = p.id
 
         const images = Array.isArray(p.images) ? p.images.filter((u) => typeof u === 'string' && u) : []
         const cover = images[0] || p.image_url || ''
+        const options = (Array.isArray(p.options) ? p.options : [])
+          .map((g) => ({
+            name: String(g?.name || '').trim(),
+            choices: (Array.isArray(g?.choices) ? g.choices : []).map((c) => String(c).trim()).filter(Boolean),
+          }))
+          .filter((g) => g.name && g.choices.length)
         const fields = {
-          name: p.name, description: p.description, price_cents: p.price_cents,
-          image_url: cover, images, active: p.active, sort_order: p.sort_order,
+          name: p.name.trim(), description: p.description || '', price_cents: p.price_cents,
+          image_url: cover, images, options, active: p.active, sort_order: p.sort_order,
         }
 
-        if (productId) {
-          const { error } = await admin.from('products').update(fields).eq('id', productId)
+        if (p.id) {
+          const { error } = await admin.from('products').update(fields).eq('id', p.id)
           if (error) throw error
-        } else {
-          const { data, error } = await admin.from('products').insert(fields).select().single()
-          if (error) throw error
-          productId = data.id
+          return res.json({ ok: true, id: p.id })
         }
-
-        // Sync variants: update existing, insert new, delete removed.
-        const incoming = p.variants || []
-        const keepIds = incoming.filter((v) => v.id).map((v) => v.id)
-        const { data: existing } = await admin.from('product_variants').select('id').eq('product_id', productId)
-        const toDelete = (existing || []).map((v) => v.id).filter((id) => !keepIds.includes(id))
-        if (toDelete.length) await admin.from('product_variants').delete().in('id', toDelete)
-
-        for (const v of incoming) {
-          if (v.id) {
-            await admin.from('product_variants').update({ size_label: v.size_label, sort_order: v.sort_order }).eq('id', v.id)
-          } else {
-            await admin.from('product_variants').insert({ product_id: productId, size_label: v.size_label, sort_order: v.sort_order })
-          }
-        }
-        return res.json({ ok: true, id: productId })
+        const { data, error } = await admin.from('products').insert(fields).select().single()
+        if (error) throw error
+        return res.json({ ok: true, id: data.id })
       }
 
       case 'upload_image': {

@@ -15,21 +15,17 @@ export default function Store({ settings }) {
   async function load() {
     const { data, error } = await supabase
       .from('products')
-      .select('id, name, description, price_cents, image_url, images, sort_order, product_variants(id, size_label, sort_order)')
+      .select('id, name, description, price_cents, image_url, images, options, sort_order')
       .eq('active', true)
       .order('sort_order')
     if (error) { console.error(error); setProducts([]); return }
-    const list = (data || []).map((p) => ({
-      ...p,
-      product_variants: [...(p.product_variants || [])].sort((a, b) => a.sort_order - b.sort_order),
-    }))
-    setProducts(list)
+    setProducts(data || [])
   }
   useEffect(() => { load() }, [])
 
-  function addToCart(product, variant) {
+  function addToCart(product, selection, optionsText) {
     setCart((prev) => {
-      const key = `${product.id}:${variant.id}`
+      const key = `${product.id}:${optionsText}`
       const existing = prev.find((i) => i.key === key)
       if (existing) {
         return prev.map((i) => (i.key === key ? { ...i, qty: i.qty + 1 } : i))
@@ -37,9 +33,9 @@ export default function Store({ settings }) {
       return [...prev, {
         key,
         product_id: product.id,
-        variant_id: variant.id,
         product_name: product.name,
-        size_label: variant.size_label,
+        options: selection,
+        options_text: optionsText,
         unit_price_cents: product.price_cents,
         qty: 1,
       }]
@@ -167,13 +163,13 @@ function Carousel({ images, alt }) {
 }
 
 function ProductCard({ product, onAdd }) {
-  const variants = product.product_variants || []
-  const hasRealSizes = !(variants.length === 1 && variants[0].size_label === 'One Size')
-  const [sel, setSel] = useState(variants[0]?.id || null)
-  const selVariant = variants.find((v) => v.id === sel)
+  const groups = (Array.isArray(product.options) ? product.options : [])
+    .filter((g) => g && g.name && Array.isArray(g.choices) && g.choices.length)
+  const [sel, setSel] = useState(() => Object.fromEntries(groups.map((g) => [g.name, g.choices[0]])))
 
   const images = (Array.isArray(product.images) && product.images.length ? product.images
     : (product.image_url ? [product.image_url] : []))
+  const optionsText = groups.map((g) => sel[g.name]).filter(Boolean).join(' · ')
 
   return (
     <div className="card">
@@ -183,25 +179,24 @@ function ProductCard({ product, onAdd }) {
         {product.description && <p className="card-desc">{product.description}</p>}
         <div className="price">{money(product.price_cents)}</div>
 
-        {hasRealSizes && (
-          <div className="sizes">
-            {variants.map((v) => (
-              <button
-                key={v.id}
-                className={`size-pill ${sel === v.id ? 'active' : ''}`}
-                onClick={() => setSel(v.id)}
-              >
-                {v.size_label}
-              </button>
-            ))}
+        {groups.map((g) => (
+          <div className="opt-group" key={g.name}>
+            <div className="opt-label">{g.name}</div>
+            <div className="sizes">
+              {g.choices.map((c) => (
+                <button
+                  key={c}
+                  className={`size-pill ${sel[g.name] === c ? 'active' : ''}`}
+                  onClick={() => setSel((s) => ({ ...s, [g.name]: c }))}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
           </div>
-        )}
+        ))}
 
-        <button
-          className="btn block"
-          disabled={!selVariant}
-          onClick={() => onAdd(product, selVariant)}
-        >
+        <button className="btn block" onClick={() => onAdd(product, sel, optionsText)}>
           Add to cart
         </button>
       </div>
@@ -230,7 +225,7 @@ function CartDrawer({ cart, settings, onClose, setQty, onOrdered, reload }) {
     try {
       const payload = {
         ...form,
-        items: cart.map((i) => ({ variant_id: i.variant_id, qty: i.qty })),
+        items: cart.map((i) => ({ product_id: i.product_id, options: i.options, qty: i.qty })),
       }
       const res = await placeOrder(payload)
       setConfirmation({ order: res.order, total })
@@ -239,7 +234,7 @@ function CartDrawer({ cart, settings, onClose, setQty, onOrdered, reload }) {
       setStage('done')
     } catch (e) {
       setErr(e.message)
-      reload() // stock may have changed
+      reload()
     } finally {
       setBusy(false)
     }
@@ -263,7 +258,7 @@ function CartDrawer({ cart, settings, onClose, setQty, onOrdered, reload }) {
                   <div className="line" key={i.key}>
                     <div className="meta">
                       <b>{i.product_name}</b>
-                      <small>{i.size_label !== 'One Size' ? `Size ${i.size_label} · ` : ''}{money(i.unit_price_cents)} each</small>
+                      <small>{i.options_text ? `${i.options_text} · ` : ''}{money(i.unit_price_cents)} each</small>
                     </div>
                     <div className="qtybox">
                       <button onClick={() => setQty(i.key, i.qty - 1)}>−</button>
