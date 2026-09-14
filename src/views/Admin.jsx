@@ -36,7 +36,7 @@ export default function Admin({ settings, onSettingsChange }) {
       <header style={{ display: 'flex', alignItems: 'center', padding: '18px 0' }}>
         <h1 style={{ margin: 0, fontSize: '1.4rem' }}>Store Admin</h1>
         <div className="spacer" />
-        <a href="#/" className="btn ghost sm" style={{ marginRight: 8 }}>View store ↗</a>
+        <a href="/" target="_blank" rel="noopener noreferrer" className="btn ghost sm" style={{ marginRight: 8 }}>View store ↗</a>
         <button className="btn ghost sm" onClick={() => { clearPass(); location.reload() }}>Log out</button>
       </header>
 
