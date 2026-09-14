@@ -217,7 +217,7 @@ function toEditable(p) {
     name: p.name,
     description: p.description || '',
     price_dollars: (p.price_cents / 100).toString(),
-    image_url: p.image_url || '',
+    images: (Array.isArray(p.images) && p.images.length ? p.images : (p.image_url ? [p.image_url] : [])),
     active: p.active,
     sort_order: p.sort_order,
     variants: (p.product_variants || []).slice().sort((a, b) => a.sort_order - b.sort_order)
@@ -234,14 +234,25 @@ function ProductEditor({ product, onDone }) {
   const addVar = () => setP((x) => ({ ...x, variants: [...x.variants, { size_label: '' }] }))
   const rmVar = (i) => setP((x) => ({ ...x, variants: x.variants.filter((_, j) => j !== i) }))
   const [uploading, setUploading] = useState(false)
+  const addImg = (url) => setP((x) => ({ ...x, images: [...(x.images || []), url] }))
+  const rmImg = (i) => setP((x) => ({ ...x, images: x.images.filter((_, j) => j !== i) }))
+  const moveImg = (i, d) => setP((x) => {
+    const arr = [...x.images]; const j = i + d
+    if (j < 0 || j >= arr.length) return x
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+    return { ...x, images: arr }
+  })
 
-  async function uploadPhoto(file) {
-    if (!file) return
+  async function uploadPhotos(fileList) {
+    const files = Array.from(fileList || [])
+    if (!files.length) return
     setErr(''); setUploading(true)
     try {
-      const dataUrl = await resizeImage(file, 1000, 0.82)
-      const { url } = await adminApi('upload_image', { data_url: dataUrl, filename: file.name })
-      set('image_url', url)
+      for (const file of files) {
+        const dataUrl = await resizeImage(file, 1000, 0.82)
+        const { url } = await adminApi('upload_image', { data_url: dataUrl, filename: file.name })
+        addImg(url)
+      }
     } catch (e) {
       setErr('Photo upload failed: ' + e.message)
     } finally { setUploading(false) }
@@ -259,7 +270,7 @@ function ProductEditor({ product, onDone }) {
           name: p.name.trim(),
           description: p.description,
           price_cents: dollarsToCents(p.price_dollars),
-          image_url: p.image_url.trim(),
+          images: p.images || [],
           active: p.active,
           sort_order: Number(p.sort_order) || 0,
           variants: p.variants.map((v, i) => ({
@@ -296,17 +307,27 @@ function ProductEditor({ product, onDone }) {
       <label className="field">Description</label>
       <textarea rows={2} value={p.description} onChange={(e) => set('description', e.target.value)} />
 
-      <label className="field">Photo (optional)</label>
-      <div className="row" style={{ alignItems: 'center' }}>
-        {p.image_url && <img src={p.image_url} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />}
-        <label className="btn ghost sm" style={{ cursor: uploading ? 'default' : 'pointer' }}>
-          {uploading ? 'Uploading…' : (p.image_url ? 'Change photo' : '📷 Upload photo')}
-          <input type="file" accept="image/*" hidden disabled={uploading} onChange={(e) => uploadPhoto(e.target.files?.[0])} />
-        </label>
-        {p.image_url && <button className="btn ghost sm" type="button" onClick={() => set('image_url', '')}>Remove</button>}
-      </div>
-      <p className="hint">Pick a photo from this device — it’s resized and hosted for you. Or paste an image URL below.</p>
-      <input value={p.image_url} onChange={(e) => set('image_url', e.target.value)} placeholder="https://… (optional image URL)" />
+      <label className="field">Photos</label>
+      <p className="hint">Upload one or more — the first is the cover shoppers see. Use ◀ ▶ to reorder.</p>
+      {p.images.length > 0 && (
+        <div className="img-grid">
+          {p.images.map((url, i) => (
+            <div className="img-thumb" key={url + i}>
+              <img src={url} alt="" />
+              {i === 0 && <span className="cover-badge">Cover</span>}
+              <div className="img-actions">
+                <button type="button" disabled={i === 0} onClick={() => moveImg(i, -1)} title="Move left">◀</button>
+                <button type="button" className="rm" onClick={() => rmImg(i)} title="Remove">✕</button>
+                <button type="button" disabled={i === p.images.length - 1} onClick={() => moveImg(i, 1)} title="Move right">▶</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <label className="btn ghost sm mt" style={{ cursor: uploading ? 'default' : 'pointer', display: 'inline-block' }}>
+        {uploading ? 'Uploading…' : (p.images.length ? '📷 Add more photos' : '📷 Upload photos')}
+        <input type="file" accept="image/*" multiple hidden disabled={uploading} onChange={(e) => uploadPhotos(e.target.files)} />
+      </label>
 
       <div className="two-col mt">
         <div>

@@ -27,11 +27,14 @@ create table if not exists public.products (
   name        text    not null,
   description text    default '',
   price_cents int     not null check (price_cents >= 0),
-  image_url   text    default '',
+  image_url   text    default '',                 -- cover image (mirrors images[0])
+  images      jsonb   not null default '[]'::jsonb, -- ordered list of image URLs (carousel)
   active      boolean not null default true,
   sort_order  int     not null default 0,
   created_at  timestamptz not null default now()
 );
+-- Migration for an existing project: add the images column if it isn't there yet.
+alter table public.products add column if not exists images jsonb not null default '[]'::jsonb;
 
 -- ---------- Product variants (sizes / options) ----------
 -- Every product has at least one variant. Use "One Size" when there are no sizes.

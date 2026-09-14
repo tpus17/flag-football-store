@@ -64,17 +64,18 @@ export default async function handler(req, res) {
         if (!p?.name?.trim()) return res.status(400).json({ error: 'Name required.' })
         let productId = p.id
 
+        const images = Array.isArray(p.images) ? p.images.filter((u) => typeof u === 'string' && u) : []
+        const cover = images[0] || p.image_url || ''
+        const fields = {
+          name: p.name, description: p.description, price_cents: p.price_cents,
+          image_url: cover, images, active: p.active, sort_order: p.sort_order,
+        }
+
         if (productId) {
-          const { error } = await admin.from('products').update({
-            name: p.name, description: p.description, price_cents: p.price_cents,
-            image_url: p.image_url, active: p.active, sort_order: p.sort_order,
-          }).eq('id', productId)
+          const { error } = await admin.from('products').update(fields).eq('id', productId)
           if (error) throw error
         } else {
-          const { data, error } = await admin.from('products').insert({
-            name: p.name, description: p.description, price_cents: p.price_cents,
-            image_url: p.image_url, active: p.active, sort_order: p.sort_order,
-          }).select().single()
+          const { data, error } = await admin.from('products').insert(fields).select().single()
           if (error) throw error
           productId = data.id
         }

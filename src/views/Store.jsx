@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../supabase'
 import {
   money, loadCart, saveCart, cartCount, cartTotalCents,
@@ -15,7 +15,7 @@ export default function Store({ settings }) {
   async function load() {
     const { data, error } = await supabase
       .from('products')
-      .select('id, name, description, price_cents, image_url, sort_order, product_variants(id, size_label, sort_order)')
+      .select('id, name, description, price_cents, image_url, images, sort_order, product_variants(id, size_label, sort_order)')
       .eq('active', true)
       .order('sort_order')
     if (error) { console.error(error); setProducts([]); return }
@@ -135,17 +135,49 @@ function GoalBar({ settings }) {
   )
 }
 
+function Carousel({ images, alt }) {
+  const [idx, setIdx] = useState(0)
+  const touchX = useRef(null)
+  if (!images.length) return <div className="card-img">👕</div>
+  const n = images.length
+  const go = (d) => setIdx((i) => (i + d + n) % n)
+  const onTouchStart = (e) => { touchX.current = e.touches[0].clientX }
+  const onTouchEnd = (e) => {
+    if (touchX.current == null) return
+    const dx = e.changedTouches[0].clientX - touchX.current
+    if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1)
+    touchX.current = null
+  }
+  return (
+    <div className="card-img carousel" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <img src={images[Math.min(idx, n - 1)]} alt={alt} />
+      {n > 1 && (
+        <>
+          <button className="car-btn prev" onClick={() => go(-1)} aria-label="Previous image">‹</button>
+          <button className="car-btn next" onClick={() => go(1)} aria-label="Next image">›</button>
+          <div className="car-dots">
+            {images.map((_, i) => (
+              <span key={i} className={`car-dot ${i === idx ? 'on' : ''}`} onClick={() => setIdx(i)} />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function ProductCard({ product, onAdd }) {
   const variants = product.product_variants || []
   const hasRealSizes = !(variants.length === 1 && variants[0].size_label === 'One Size')
   const [sel, setSel] = useState(variants[0]?.id || null)
   const selVariant = variants.find((v) => v.id === sel)
 
+  const images = (Array.isArray(product.images) && product.images.length ? product.images
+    : (product.image_url ? [product.image_url] : []))
+
   return (
     <div className="card">
-      <div className="card-img">
-        {product.image_url ? <img src={product.image_url} alt={product.name} /> : '👕'}
-      </div>
+      <Carousel images={images} alt={product.name} />
       <div className="card-body">
         <h3>{product.name}</h3>
         {product.description && <p className="card-desc">{product.description}</p>}
