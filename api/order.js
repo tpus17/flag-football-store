@@ -85,5 +85,64 @@ export default async function handler(req, res) {
   const { error: iErr } = await admin.from('order_items').insert(itemRows)
   if (iErr) return res.status(500).json({ error: 'Order saved but items failed — please contact the store.' })
 
+  // Notify the store owner by email (non-fatal — the order still succeeds if this fails).
+  try {
+    await sendOrderEmail({ order, lines, buyer_name, buyer_contact, contact_type, payment_method, note, total })
+  } catch (e) {
+    console.error('Order notification email failed:', e.message)
+  }
+
   return res.status(200).json({ ok: true, order: { id: order.id, total_cents: total } })
+}
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const usd = (c) => '$' + (Number(c || 0) / 100).toFixed(2)
+
+// Send an order-details email via Resend (https://resend.com). No-ops if RESEND_API_KEY
+// isn't configured yet, so orders keep working before email is set up.
+async function sendOrderEmail({ order, lines, buyer_name, buyer_contact, contact_type, payment_method, note, total }) {
+  const key = process.env.RESEND_API_KEY
+  if (!key) return
+  const to = process.env.ORDER_NOTIFY_EMAIL || 'tom@topteamscore.com'
+  const from = process.env.ORDER_FROM_EMAIL || 'C-Side Flag Football <onboarding@resend.dev>'
+
+  const rows = lines.map((l) => {
+    const opts = Object.entries(l.options || {}).map(([k, v]) => `${esc(k)}: ${esc(v)}`).join(', ') || esc(l.size_label || '')
+    return `<tr>
+      <td style="padding:8px 10px;border-bottom:1px solid #eee;white-space:nowrap">${l.qty}×</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #eee"><b>${esc(l.product_name)}</b>${opts ? `<br><span style="color:#666;font-size:13px">${opts}</span>` : ''}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap">${usd(l.unit_price_cents * l.qty)}</td>
+    </tr>`
+  }).join('')
+
+  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:560px;margin:0 auto;color:#201618">
+    <div style="background:#7a1d2b;color:#fff;padding:14px 18px;border-radius:12px 12px 0 0;border-bottom:3px solid #c8a13c">
+      <b style="font-size:18px">New C-Side Flag Football order</b>
+    </div>
+    <div style="border:1px solid #eee;border-top:none;border-radius:0 0 12px 12px;padding:18px">
+      <p style="margin:0 0 4px"><b>${esc(buyer_name)}</b></p>
+      <p style="margin:0 0 2px;color:#555">${contact_type === 'email' ? 'Email' : 'Phone'}: ${esc(buyer_contact)}</p>
+      <p style="margin:0 0 2px;color:#555">Paying by: <b style="text-transform:capitalize">${esc(payment_method)}</b></p>
+      ${note ? `<p style="margin:8px 0 0;color:#555">Note: “${esc(note)}”</p>` : ''}
+      <table style="width:100%;border-collapse:collapse;margin-top:14px">${rows}
+        <tr><td></td><td style="padding:10px;text-align:right;font-weight:800">Total</td>
+        <td style="padding:10px;text-align:right;font-weight:800">${usd(total)}</td></tr>
+      </table>
+      <p style="margin:16px 0 0;color:#999;font-size:12px">Order ${esc(order.id)} · ${new Date(order.created_at || Date.now()).toLocaleString('en-US')}</p>
+    </div>
+  </div>`
+
+  const payload = {
+    from, to,
+    subject: `New order — ${buyer_name} (${usd(total)})`,
+    html,
+  }
+  if (contact_type === 'email' && buyer_contact.includes('@')) payload.reply_to = buyer_contact.trim()
+
+  const resp = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!resp.ok) throw new Error(`Resend ${resp.status}: ${await resp.text()}`)
 }
