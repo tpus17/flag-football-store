@@ -182,9 +182,12 @@ function Orders() {
                     {o.note && <div className="muted" style={{ fontSize: '0.8rem' }}>“{o.note}”</div>}
                   </td>
                   <td>
-                    {(o.order_items || []).map((it) => (
-                      <div key={it.id}>{it.qty}× {it.product_name}{it.size_label ? ` — ${it.size_label}` : ''}</div>
-                    ))}
+                    {(o.order_items || []).map((it) => {
+                      const opts = it.options && Object.keys(it.options).length
+                        ? Object.entries(it.options).map(([k, v]) => `${k}: ${v}`).join(', ')
+                        : it.size_label
+                      return <div key={it.id}>{it.qty}× {it.product_name}{opts ? ` — ${opts}` : ''}</div>
+                    })}
                   </td>
                   <td><b>{money(o.total_cents)}</b></td>
                   <td style={{ textTransform: 'capitalize' }}>{o.payment_method}</td>
@@ -392,6 +395,7 @@ function ProductEditor({ product, onDone }) {
         {!hasGroup('Color') && <button className="btn ghost sm" onClick={() => addGroup('Color', 'Maroon, Gold, Black, White')}>+ Color</button>}
         {!hasGroup('Logo') && <button className="btn ghost sm" onClick={() => addGroup('Logo', 'Crest, Wordmark')}>+ Logo</button>}
         {!hasGroup('Placement') && <button className="btn ghost sm" onClick={() => addGroup('Placement', 'Left chest, Full front, Full back')}>+ Placement</button>}
+        {!hasGroup('Back Print') && <button className="btn ghost sm" onClick={() => addGroup('Back Print', 'None, Crest, Wordmark')}>+ Back print</button>}
         <button className="btn ghost sm" onClick={() => addGroup('', '')}>+ Custom option</button>
       </div>
 
