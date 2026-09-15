@@ -140,7 +140,7 @@ a { color: var(--accent-dark); }
 .price { font-weight: 800; font-size: 1.1rem; color: var(--accent-dark); }
 .row { display: flex; gap: 8px; align-items: center; }
 .sizes { display: flex; flex-wrap: wrap; gap: 6px; }
-.opt-group { margin-top: 2px; }
+.opt-group { margin-top: 6px; }
 .opt-label { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
 .size-pill {
   border: 1.5px solid var(--line);

@@ -182,17 +182,14 @@ function ProductCard({ product, onAdd }) {
         {groups.map((g) => (
           <div className="opt-group" key={g.name}>
             <div className="opt-label">{g.name}</div>
-            <div className="sizes">
+            <select
+              value={sel[g.name] || ''}
+              onChange={(e) => setSel((s) => ({ ...s, [g.name]: e.target.value }))}
+            >
               {g.choices.map((c) => (
-                <button
-                  key={c}
-                  className={`size-pill ${sel[g.name] === c ? 'active' : ''}`}
-                  onClick={() => setSel((s) => ({ ...s, [g.name]: c }))}
-                >
-                  {c}
-                </button>
+                <option key={c} value={c}>{c}</option>
               ))}
-            </div>
+            </select>
           </div>
         ))}
 

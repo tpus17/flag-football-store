@@ -355,7 +355,7 @@ function ProductEditor({ product, onDone }) {
       <div className="row mt" style={{ flexWrap: 'wrap' }}>
         {!hasGroup('Size') && <button className="btn ghost sm" onClick={() => addGroup('Size', 'YS, YM, YL, S, M, L, XL')}>+ Size</button>}
         {!hasGroup('Color') && <button className="btn ghost sm" onClick={() => addGroup('Color', 'Maroon, Gold, Black, White')}>+ Color</button>}
-        {!hasGroup('Sex') && <button className="btn ghost sm" onClick={() => addGroup('Sex', "Men's, Women's, Youth")}>+ Sex</button>}
+        {!hasGroup('Logo') && <button className="btn ghost sm" onClick={() => addGroup('Logo', 'Left chest, Full front, Full back')}>+ Logo</button>}
         <button className="btn ghost sm" onClick={() => addGroup('', '')}>+ Custom option</button>
       </div>
 
