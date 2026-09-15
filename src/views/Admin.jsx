@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { money, dollarsToCents, adminApi, getPass, setPass, clearPass } from '../lib'
+import { PreviewImage, DEFAULT_PLACEMENT } from '../Preview.jsx'
 
 // Load an image file, scale it down to fit maxDim, and return a JPEG data URL.
 // Keeps uploads small + fast (phone photos can be huge).
@@ -23,6 +24,34 @@ function resizeImage(file, maxDim, quality) {
     }
     reader.readAsDataURL(file)
   })
+}
+
+// Like resizeImage but keeps transparency (PNG) — for logo overlays.
+function resizePng(file, maxDim) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    const img = new Image()
+    reader.onload = () => { img.src = reader.result }
+    reader.onerror = () => reject(new Error('Could not read file'))
+    img.onerror = () => reject(new Error('Not a valid image'))
+    img.onload = () => {
+      let { width, height } = img
+      if (width >= height && width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim }
+      else if (height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim }
+      const canvas = document.createElement('canvas')
+      canvas.width = width; canvas.height = height
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+      resolve(canvas.toDataURL('image/png'))
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+// Parse the editor's option groups (name + comma choices) into {name, choices[]}.
+function parseGroups(options) {
+  return (options || [])
+    .map((g) => ({ name: (g.name || '').trim(), choices: (g.choicesText || '').split(',').map((s) => s.trim()).filter(Boolean) }))
+    .filter((g) => g.name && g.choices.length)
 }
 
 export default function Admin({ settings, onSettingsChange }) {
@@ -188,7 +217,7 @@ function Products() {
 
   return (
     <>
-      <button className="btn" onClick={() => setEditing({ isNew: true, name: '', description: '', price_dollars: '', image_url: '', active: true, sort_order: (products.length + 1), options: [] })}>+ New product</button>
+      <button className="btn" onClick={() => setEditing({ isNew: true, name: '', description: '', price_dollars: '', image_url: '', active: true, sort_order: (products.length + 1), options: [], preview: { colorImages: {}, logoImages: {}, placements: {} } })}>+ New product</button>
       <div className="mt">
         {products.map((p) => (
           <div className="admin-card" key={p.id}>
@@ -221,6 +250,11 @@ function toEditable(p) {
     active: p.active,
     sort_order: p.sort_order,
     options: (Array.isArray(p.options) ? p.options : []).map((g) => ({ name: g.name || '', choicesText: (g.choices || []).join(', ') })),
+    preview: (p.preview && typeof p.preview === 'object') ? {
+      colorImages: p.preview.colorImages || {},
+      logoImages: p.preview.logoImages || {},
+      placements: p.preview.placements || {},
+    } : { colorImages: {}, logoImages: {}, placements: {} },
   }
 }
 
@@ -276,6 +310,7 @@ function ProductEditor({ product, onDone }) {
             name: (g.name || '').trim(),
             choices: (g.choicesText || '').split(',').map((s) => s.trim()).filter(Boolean),
           })).filter((g) => g.name && g.choices.length),
+          preview: p.preview || { colorImages: {}, logoImages: {}, placements: {} },
         },
       })
       onDone()
@@ -355,9 +390,12 @@ function ProductEditor({ product, onDone }) {
       <div className="row mt" style={{ flexWrap: 'wrap' }}>
         {!hasGroup('Size') && <button className="btn ghost sm" onClick={() => addGroup('Size', 'YS, YM, YL, S, M, L, XL')}>+ Size</button>}
         {!hasGroup('Color') && <button className="btn ghost sm" onClick={() => addGroup('Color', 'Maroon, Gold, Black, White')}>+ Color</button>}
-        {!hasGroup('Logo') && <button className="btn ghost sm" onClick={() => addGroup('Logo', 'Left chest, Full front, Full back')}>+ Logo</button>}
+        {!hasGroup('Logo') && <button className="btn ghost sm" onClick={() => addGroup('Logo', 'Crest, Wordmark')}>+ Logo</button>}
+        {!hasGroup('Placement') && <button className="btn ghost sm" onClick={() => addGroup('Placement', 'Left chest, Full front, Full back')}>+ Placement</button>}
         <button className="btn ghost sm" onClick={() => addGroup('', '')}>+ Custom option</button>
       </div>
+
+      <PreviewSetup p={p} setP={setP} />
 
       {err && <div className="err mt">{err}</div>}
 
@@ -366,6 +404,99 @@ function ProductEditor({ product, onDone }) {
         <button className="btn ghost" onClick={onDone} disabled={busy}>Cancel</button>
         <div className="spacer" />
         {!p.isNew && <button className="btn danger" onClick={del} disabled={busy}>Delete</button>}
+      </div>
+    </div>
+  )
+}
+
+// ---- Live overlay preview setup (color photos + logo overlays + placement) ----
+function PreviewSetup({ p, setP }) {
+  const groups = parseGroups(p.options)
+  const grp = (n) => groups.find((g) => g.name.toLowerCase() === n.toLowerCase())
+  const colorGroup = grp('Color'), logoGroup = grp('Logo'), placementGroup = grp('Placement')
+
+  const pv = p.preview || {}
+  const colorImages = pv.colorImages || {}
+  const logoImages = pv.logoImages || {}
+  const placements = pv.placements || {}
+
+  const [sel, setSel] = useState({})
+  const [uploading, setUploading] = useState('')
+  const [err, setErr] = useState('')
+
+  const patch = (key, val) => setP((x) => ({ ...x, preview: { ...(x.preview || {}), [key]: val } }))
+
+  if (!colorGroup && !logoGroup) {
+    return <p className="hint mt">Add a <b>Color</b> and/or <b>Logo</b> option above to turn on the live overlay preview.</p>
+  }
+
+  const curColor = sel.color ?? colorGroup?.choices[0]
+  const curLogo = sel.logo ?? logoGroup?.choices[0]
+  const curPlace = placementGroup ? (sel.placement ?? placementGroup.choices[0]) : null
+  const placeKey = curPlace || 'default'
+  const coords = placements[placeKey] || DEFAULT_PLACEMENT
+
+  const setCoord = (k, v) => patch('placements', { ...placements, [placeKey]: { ...coords, [k]: Number(v) } })
+
+  async function up(file, kind) {
+    if (!file) return
+    setErr(''); setUploading(kind)
+    try {
+      const dataUrl = kind === 'logo' ? await resizePng(file, 700) : await resizeImage(file, 1000, 0.85)
+      const { url } = await adminApi('upload_image', { data_url: dataUrl })
+      if (kind === 'logo') patch('logoImages', { ...logoImages, [curLogo]: url })
+      else patch('colorImages', { ...colorImages, [curColor]: url })
+    } catch (e) { setErr('Upload failed: ' + e.message) } finally { setUploading('') }
+  }
+
+  return (
+    <div className="admin-card" style={{ background: '#faf8f8', marginTop: 12 }}>
+      <b>Live preview — color + logo overlay</b>
+      <p className="hint">Upload a garment photo for each color and a transparent logo for each logo choice, then position the logo with the sliders. Shoppers see this composite update live as they choose.</p>
+      <div className="two-col">
+        <div style={{ maxWidth: 280, margin: '0 auto', width: '100%' }}>
+          <PreviewImage base={(curColor && colorImages[curColor]) || ''} logo={(curLogo && logoImages[curLogo]) || null} placement={coords} />
+        </div>
+        <div>
+          {colorGroup && (
+            <>
+              <label className="field">Color</label>
+              <select value={curColor} onChange={(e) => setSel((s) => ({ ...s, color: e.target.value }))}>
+                {colorGroup.choices.map((c) => <option key={c} value={c}>{c}{colorImages[c] ? '  ✓' : ''}</option>)}
+              </select>
+              <label className="btn ghost sm mt" style={{ cursor: uploading ? 'default' : 'pointer', display: 'inline-block' }}>
+                {uploading === 'color' ? 'Uploading…' : `📷 Photo for “${curColor}”`}
+                <input type="file" accept="image/*" hidden disabled={!!uploading} onChange={(e) => up(e.target.files?.[0], 'color')} />
+              </label>
+            </>
+          )}
+          {logoGroup && (
+            <>
+              <label className="field mt">Logo</label>
+              <select value={curLogo} onChange={(e) => setSel((s) => ({ ...s, logo: e.target.value }))}>
+                {logoGroup.choices.map((c) => <option key={c} value={c}>{c}{logoImages[c] ? '  ✓' : ''}</option>)}
+              </select>
+              <label className="btn ghost sm mt" style={{ cursor: uploading ? 'default' : 'pointer', display: 'inline-block' }}>
+                {uploading === 'logo' ? 'Uploading…' : `🅻 Logo for “${curLogo}” (transparent PNG)`}
+                <input type="file" accept="image/*" hidden disabled={!!uploading} onChange={(e) => up(e.target.files?.[0], 'logo')} />
+              </label>
+
+              {placementGroup && (
+                <>
+                  <label className="field mt">Placement</label>
+                  <select value={curPlace} onChange={(e) => setSel((s) => ({ ...s, placement: e.target.value }))}>
+                    {placementGroup.choices.map((c) => <option key={c} value={c}>{c}{placements[c] ? '  ✓' : ''}</option>)}
+                  </select>
+                </>
+              )}
+              <label className="field mt">Logo position &amp; size{placementGroup ? ` for “${curPlace}”` : ''}</label>
+              <div className="slider-row"><span>Left ↔ Right</span><input type="range" min="0" max="1" step="0.01" value={coords.x} onChange={(e) => setCoord('x', e.target.value)} /></div>
+              <div className="slider-row"><span>Top ↕ Bottom</span><input type="range" min="0" max="1" step="0.01" value={coords.y} onChange={(e) => setCoord('y', e.target.value)} /></div>
+              <div className="slider-row"><span>Size</span><input type="range" min="0.05" max="1" step="0.01" value={coords.w} onChange={(e) => setCoord('w', e.target.value)} /></div>
+            </>
+          )}
+          {err && <div className="err mt">{err}</div>}
+        </div>
       </div>
     </div>
   )

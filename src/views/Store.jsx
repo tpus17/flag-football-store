@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../supabase'
+import { PreviewImage, DEFAULT_PLACEMENT } from '../Preview.jsx'
 import {
   money, loadCart, saveCart, cartCount, cartTotalCents,
   placeOrder, venmoLink,
@@ -15,7 +16,7 @@ export default function Store({ settings }) {
   async function load() {
     const { data, error } = await supabase
       .from('products')
-      .select('id, name, description, price_cents, image_url, images, options, sort_order')
+      .select('id, name, description, price_cents, image_url, images, options, preview, sort_order')
       .eq('active', true)
       .order('sort_order')
     if (error) { console.error(error); setProducts([]); return }
@@ -171,9 +172,20 @@ function ProductCard({ product, onAdd }) {
     : (product.image_url ? [product.image_url] : []))
   const optionsText = groups.map((g) => sel[g.name]).filter(Boolean).join(' · ')
 
+  // Live overlay preview: base garment (by Color) + logo (by Logo) at placement (by Placement).
+  const pv = product.preview || {}
+  const colorImgs = pv.colorImages || {}
+  const logoImgs = pv.logoImages || {}
+  const base = colorImgs[sel['Color']] || images[0] || ''
+  const logo = logoImgs[sel['Logo']] || null
+  const place = (pv.placements || {})[sel['Placement']] || (pv.placements || {})['default'] || DEFAULT_PLACEMENT
+  const usePreview = (Object.keys(colorImgs).length > 0 || Object.keys(logoImgs).length > 0) && base
+
   return (
     <div className="card">
-      <Carousel images={images} alt={product.name} />
+      {usePreview
+        ? <PreviewImage base={base} logo={logo} placement={place} alt={product.name} />
+        : <Carousel images={images} alt={product.name} />}
       <div className="card-body">
         <h3>{product.name}</h3>
         {product.description && <p className="card-desc">{product.description}</p>}

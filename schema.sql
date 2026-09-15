@@ -29,7 +29,8 @@ create table if not exists public.products (
   price_cents int     not null check (price_cents >= 0),
   image_url   text    default '',                 -- cover image (mirrors images[0])
   images      jsonb   not null default '[]'::jsonb, -- ordered list of image URLs (carousel)
-  options     jsonb   not null default '[]'::jsonb, -- [{name, choices:[...]}] e.g. Size / Color / Sex
+  options     jsonb   not null default '[]'::jsonb, -- [{name, choices:[...]}] e.g. Size / Color / Logo
+  preview     jsonb   not null default '{}'::jsonb, -- {colorImages, logoImages, placements} for live overlay
   active      boolean not null default true,
   sort_order  int     not null default 0,
   created_at  timestamptz not null default now()
@@ -37,6 +38,7 @@ create table if not exists public.products (
 -- Migrations for an existing project: add columns if they aren't there yet.
 alter table public.products add column if not exists images jsonb not null default '[]'::jsonb;
 alter table public.products add column if not exists options jsonb not null default '[]'::jsonb;
+alter table public.products add column if not exists preview jsonb not null default '{}'::jsonb;
 
 -- ---------- Product variants (sizes / options) ----------
 -- Every product has at least one variant. Use "One Size" when there are no sizes.

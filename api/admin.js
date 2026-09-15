@@ -71,9 +71,16 @@ export default async function handler(req, res) {
             choices: (Array.isArray(g?.choices) ? g.choices : []).map((c) => String(c).trim()).filter(Boolean),
           }))
           .filter((g) => g.name && g.choices.length)
+        const rawPv = (p.preview && typeof p.preview === 'object') ? p.preview : {}
+        const obj = (o) => (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}
+        const preview = {
+          colorImages: obj(rawPv.colorImages),
+          logoImages: obj(rawPv.logoImages),
+          placements: obj(rawPv.placements),
+        }
         const fields = {
           name: p.name.trim(), description: p.description || '', price_cents: p.price_cents,
-          image_url: cover, images, options, active: p.active, sort_order: p.sort_order,
+          image_url: cover, images, options, preview, active: p.active, sort_order: p.sort_order,
         }
 
         if (p.id) {

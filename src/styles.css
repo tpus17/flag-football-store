@@ -271,6 +271,16 @@ th { background: #eef2ef; font-size: 0.78rem; text-transform: uppercase; letter-
 
 .opt-editor { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-top: 10px; background: #faf8f8; }
 
+.slider-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.slider-row span { font-size: 0.78rem; color: var(--muted); width: 100px; flex-shrink: 0; }
+.slider-row input[type="range"] { flex: 1; accent-color: var(--accent); }
+
+/* Live overlay preview (store card + admin) */
+.preview-wrap { position: relative; aspect-ratio: 1 / 1; background: #eef2ef; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.preview-base { width: 100%; height: 100%; object-fit: cover; }
+.preview-empty { font-size: 3rem; color: #b7c2ba; }
+.preview-logo { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
+
 .center { text-align: center; }
 .mt { margin-top: 12px; }
 .muted { color: var(--muted); }
