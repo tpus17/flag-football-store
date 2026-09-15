@@ -104,7 +104,7 @@ async function sendOrderEmail({ order, lines, buyer_name, buyer_contact, contact
   const key = process.env.RESEND_API_KEY
   if (!key) return
   const to = process.env.ORDER_NOTIFY_EMAIL || 'tom@topteamscore.com'
-  const from = process.env.ORDER_FROM_EMAIL || 'C-Side Flag Football <onboarding@resend.dev>'
+  const from = process.env.ORDER_FROM_EMAIL || 'C-Side Flag Football <orders@ludivation.com>'
 
   const rows = lines.map((l) => {
     const opts = Object.entries(l.options || {}).map(([k, v]) => `${esc(k)}: ${esc(v)}`).join(', ') || esc(l.size_label || '')
