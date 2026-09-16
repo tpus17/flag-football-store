@@ -220,7 +220,7 @@ function Products() {
 
   return (
     <>
-      <button className="btn" onClick={() => setEditing({ isNew: true, name: '', description: '', price_dollars: '', image_url: '', active: true, sort_order: (products.length + 1), options: [], preview: { colorImages: {}, logoImages: {}, placements: {} } })}>+ New product</button>
+      <button className="btn" onClick={() => setEditing({ isNew: true, name: '', description: '', price_dollars: '', image_url: '', images: [], active: true, sort_order: (products.length + 1), options: [], preview: { colorImages: {}, logoImages: {}, placements: {} } })}>+ New product</button>
       <div className="mt">
         {products.map((p) => (
           <div className="admin-card" key={p.id}>
