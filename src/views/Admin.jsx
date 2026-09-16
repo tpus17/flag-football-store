@@ -465,7 +465,9 @@ function PreviewSetup({ p, setP }) {
   }
 
   const curColor = sel.color ?? colorGroup?.choices[0]
-  const curLogo = sel.logo ?? logoGroup?.choices[0]
+  // The logo picker offers the actual logos — "None" means no print, so it needs no image.
+  const logoChoices = (logoGroup?.choices || []).filter((c) => String(c).toLowerCase() !== 'none')
+  const curLogo = sel.logo ?? logoChoices[0]
   const curPlace = placementGroup ? (sel.placement ?? placementGroup.choices[0]) : null
   // Position + size are stored per (placement × logo) so each logo sizes independently.
   const placeKey = placementKey(curPlace, curLogo)
@@ -508,8 +510,8 @@ function PreviewSetup({ p, setP }) {
           {logoGroup && (
             <>
               <label className="field mt">Logo</label>
-              <select value={curLogo} onChange={(e) => setSel((s) => ({ ...s, logo: e.target.value }))}>
-                {logoGroup.choices.map((c) => <option key={c} value={c}>{c}{logoImages[c] ? '  ✓' : ''}</option>)}
+              <select value={curLogo || ''} onChange={(e) => setSel((s) => ({ ...s, logo: e.target.value }))}>
+                {logoChoices.map((c) => <option key={c} value={c}>{c}{logoImages[c] ? '  ✓' : ''}</option>)}
               </select>
               <label className="btn ghost sm mt" style={{ cursor: uploading ? 'default' : 'pointer', display: 'inline-block' }}>
                 {uploading === 'logo' ? 'Uploading…' : `🅻 Logo for “${curLogo}” (transparent PNG)`}
