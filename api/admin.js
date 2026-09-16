@@ -70,6 +70,7 @@ export default async function handler(req, res) {
             name: String(g?.name || '').trim(),
             choices: (Array.isArray(g?.choices) ? g.choices : []).map((c) => String(c).trim()).filter(Boolean),
             upcharge: Math.max(0, Math.round(Number(g?.upcharge) || 0)),
+            print: !!g?.print,
           }))
           .filter((g) => g.name && g.choices.length)
         const rawPv = (p.preview && typeof p.preview === 'object') ? p.preview : {}

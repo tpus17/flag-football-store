@@ -3,7 +3,7 @@ import { supabase } from '../supabase'
 import { PreviewImage, lookupPlacement } from '../Preview.jsx'
 import {
   money, loadCart, saveCart, cartCount, cartTotalCents,
-  placeOrder, venmoLink,
+  placeOrder, venmoLink, computePricing,
 } from '../lib'
 
 export default function Store({ settings }) {
@@ -172,21 +172,18 @@ function ProductCard({ product, onAdd }) {
     : (product.image_url ? [product.image_url] : []))
   const optionsText = groups.map((g) => sel[g.name]).filter(Boolean).join(' · ')
 
-  // Live overlay preview: base garment (by Color) + logo (by Logo) at placement (by Placement × Logo).
+  // Live overlay preview: base garment (by Color) + the FRONT logo at its placement.
   const pv = product.preview || {}
   const colorImgs = pv.colorImages || {}
   const logoImgs = pv.logoImages || {}
+  const frontName = ['Front Print', 'Logo', 'Front'].find((n) => groups.some((g) => g.name === n))
+  const frontVal = frontName ? sel[frontName] : undefined
   const base = colorImgs[sel['Color']] || images[0] || ''
-  const logo = logoImgs[sel['Logo']] || null
-  const place = lookupPlacement(pv.placements, sel['Placement'], sel['Logo'])
+  const logo = (frontVal && frontVal.toLowerCase() !== 'none' && logoImgs[frontVal]) || null
+  const place = lookupPlacement(pv.placements, sel['Placement'], frontVal)
   const usePreview = (Object.keys(colorImgs).length > 0 || Object.keys(logoImgs).length > 0) && base
 
-  // Price adjusts for any option upcharges (e.g. adding a back print). A choice of
-  // "None" never charges. The server recomputes this authoritatively at checkout.
-  const activeUpcharges = groups
-    .filter((g) => Number(g.upcharge) > 0 && sel[g.name] && sel[g.name].toLowerCase() !== 'none')
-    .map((g) => ({ name: g.name, cents: Number(g.upcharge) }))
-  const unitPrice = product.price_cents + activeUpcharges.reduce((s, u) => s + u.cents, 0)
+  const { unitCents: unitPrice, applied: activeUpcharges } = computePricing(product.price_cents, groups, sel)
 
   return (
     <div className="card">
@@ -203,7 +200,7 @@ function ProductCard({ product, onAdd }) {
 
         {groups.map((g) => (
           <div className="opt-group" key={g.name}>
-            <div className="opt-label">{g.name}{Number(g.upcharge) > 0 ? ` (+${money(g.upcharge)})` : ''}</div>
+            <div className="opt-label">{g.name}{!g.print && Number(g.upcharge) > 0 ? ` (+${money(g.upcharge)})` : ''}</div>
             <select
               value={sel[g.name] || ''}
               onChange={(e) => setSel((s) => ({ ...s, [g.name]: e.target.value }))}

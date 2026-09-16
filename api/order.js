@@ -60,11 +60,15 @@ export default async function handler(req, res) {
     const cleanOpts = {}
     const parts = []
     let unit = prod.price_cents
+    let prints = 0
     for (const g of groups) {
       const val = w.options[g?.name]
       if (val && Array.isArray(g.choices) && g.choices.includes(val) && val.toLowerCase() !== 'none') {
         cleanOpts[g.name] = val; parts.push(val)
-        if (Number(g.upcharge) > 0) unit += Math.round(Number(g.upcharge))
+        const up = Math.round(Number(g.upcharge) || 0)
+        // "print" groups: first print is included in the base; each extra print adds its upcharge.
+        if (g.print) { prints += 1; if (prints > 1 && up > 0) unit += up }
+        else if (up > 0) unit += up
       }
     }
     total += unit * w.qty

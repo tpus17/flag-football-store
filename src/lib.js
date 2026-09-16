@@ -5,6 +5,32 @@ export const money = (cents) =>
 
 export const dollarsToCents = (v) => Math.round(Number(v || 0) * 100)
 
+// Compute a unit price from a base + option groups + the shopper's selection.
+// "print"-flagged groups (e.g. Front Print / Back Print): the FIRST selected print
+// (choice other than "None") is included in the base; each ADDITIONAL print adds its
+// upcharge — so front-only or back-only stays at base, both adds the charge.
+// Non-print groups add their upcharge whenever a non-"None" choice is selected.
+// The server recomputes this identically at checkout, so it can't be tampered with.
+export function computePricing(baseCents, groups, sel) {
+  let unit = Number(baseCents) || 0
+  let prints = 0
+  const applied = []
+  for (const g of (groups || [])) {
+    const val = sel?.[g.name]
+    if (!val) continue
+    if (Array.isArray(g.choices) && !g.choices.includes(val)) continue
+    if (String(val).toLowerCase() === 'none') continue
+    const up = Math.round(Number(g.upcharge) || 0)
+    if (g.print) {
+      prints += 1
+      if (prints > 1 && up > 0) { unit += up; applied.push({ name: g.name, cents: up }) }
+    } else if (up > 0) {
+      unit += up; applied.push({ name: g.name, cents: up })
+    }
+  }
+  return { unitCents: unit, applied }
+}
+
 // ---------- Cart (localStorage) ----------
 const CART_KEY = 'ffstore_cart_v2'
 

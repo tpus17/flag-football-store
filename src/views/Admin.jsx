@@ -252,7 +252,7 @@ function toEditable(p) {
     images: (Array.isArray(p.images) && p.images.length ? p.images : (p.image_url ? [p.image_url] : [])),
     active: p.active,
     sort_order: p.sort_order,
-    options: (Array.isArray(p.options) ? p.options : []).map((g) => ({ name: g.name || '', choicesText: (g.choices || []).join(', '), upchargeDollars: Number(g.upcharge) > 0 ? (g.upcharge / 100).toString() : '' })),
+    options: (Array.isArray(p.options) ? p.options : []).map((g) => ({ name: g.name || '', choicesText: (g.choices || []).join(', '), upchargeDollars: Number(g.upcharge) > 0 ? (g.upcharge / 100).toString() : '', print: !!g.print })),
     preview: (p.preview && typeof p.preview === 'object') ? {
       colorImages: p.preview.colorImages || {},
       logoImages: p.preview.logoImages || {},
@@ -268,6 +268,11 @@ function ProductEditor({ product, onDone }) {
   const set = (k, v) => setP((x) => ({ ...x, [k]: v }))
   const setGroup = (i, k, v) => setP((x) => ({ ...x, options: x.options.map((g, j) => j === i ? { ...g, [k]: v } : g) }))
   const addGroup = (name, choicesText, upchargeDollars = '') => setP((x) => ({ ...x, options: [...x.options, { name, choicesText, upchargeDollars }] }))
+  const addFrontBack = () => setP((x) => ({ ...x, options: [
+    ...x.options,
+    { name: 'Front Print', choicesText: 'None, Crest, Wordmark', upchargeDollars: '5', print: true },
+    { name: 'Back Print', choicesText: 'None, Crest, Wordmark', upchargeDollars: '5', print: true },
+  ] }))
   const rmGroup = (i) => setP((x) => ({ ...x, options: x.options.filter((_, j) => j !== i) }))
   const hasGroup = (name) => p.options.some((g) => (g.name || '').toLowerCase() === name.toLowerCase())
   const [uploading, setUploading] = useState(false)
@@ -313,6 +318,7 @@ function ProductEditor({ product, onDone }) {
             name: (g.name || '').trim(),
             choices: (g.choicesText || '').split(',').map((s) => s.trim()).filter(Boolean),
             upcharge: dollarsToCents(g.upchargeDollars),
+            print: !!g.print,
           })).filter((g) => g.name && g.choices.length),
           preview: p.preview || { colorImages: {}, logoImages: {}, placements: {} },
         },
@@ -390,11 +396,15 @@ function ProductEditor({ product, onDone }) {
           </div>
           <input className="mt" value={g.choicesText} onChange={(e) => setGroup(i, 'choicesText', e.target.value)} placeholder="Choices, comma-separated (e.g. S, M, L, XL)" />
           <div className="row mt" style={{ alignItems: 'center' }}>
-            <span className="hint" style={{ margin: 0 }}>Upcharge when chosen (optional):</span>
-            <div style={{ position: 'relative', width: 110 }}>
+            <span className="hint" style={{ margin: 0 }}>Upcharge:</span>
+            <div style={{ position: 'relative', width: 100 }}>
               <span style={{ position: 'absolute', left: 10, top: 10, color: 'var(--muted)' }}>$</span>
               <input type="number" step="0.01" min="0" style={{ paddingLeft: 20 }} value={g.upchargeDollars || ''} onChange={(e) => setGroup(i, 'upchargeDollars', e.target.value)} placeholder="0.00" />
             </div>
+            <label className="hint" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" style={{ width: 'auto' }} checked={!!g.print} onChange={(e) => setGroup(i, 'print', e.target.checked)} />
+              Print location (1st included, extras add the upcharge)
+            </label>
           </div>
         </div>
       ))}
@@ -403,7 +413,7 @@ function ProductEditor({ product, onDone }) {
         {!hasGroup('Color') && <button className="btn ghost sm" onClick={() => addGroup('Color', 'Maroon, Gold, Black, White')}>+ Color</button>}
         {!hasGroup('Logo') && <button className="btn ghost sm" onClick={() => addGroup('Logo', 'Crest, Wordmark')}>+ Logo</button>}
         {!hasGroup('Placement') && <button className="btn ghost sm" onClick={() => addGroup('Placement', 'Left chest, Full front, Full back')}>+ Placement</button>}
-        {!hasGroup('Back Print') && <button className="btn ghost sm" onClick={() => addGroup('Back Print', 'None, Crest, Wordmark', '5')}>+ Back print</button>}
+        {!hasGroup('Front Print') && !hasGroup('Back Print') && <button className="btn ghost sm" onClick={addFrontBack}>+ Front &amp; Back print</button>}
         <button className="btn ghost sm" onClick={() => addGroup('', '')}>+ Custom option</button>
       </div>
 
@@ -425,7 +435,7 @@ function ProductEditor({ product, onDone }) {
 function PreviewSetup({ p, setP }) {
   const groups = parseGroups(p.options)
   const grp = (n) => groups.find((g) => g.name.toLowerCase() === n.toLowerCase())
-  const colorGroup = grp('Color'), logoGroup = grp('Logo'), placementGroup = grp('Placement')
+  const colorGroup = grp('Color'), logoGroup = grp('Front Print') || grp('Logo') || grp('Front'), placementGroup = grp('Placement')
 
   const pv = p.preview || {}
   const colorImages = pv.colorImages || {}
