@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { money, dollarsToCents, adminApi, getPass, setPass, clearPass } from '../lib'
-import { PreviewImage, DEFAULT_PLACEMENT } from '../Preview.jsx'
+import { PreviewImage, DEFAULT_PLACEMENT, placementKey, lookupPlacement } from '../Preview.jsx'
 
 // Load an image file, scale it down to fit maxDim, and return a JPEG data URL.
 // Keeps uploads small + fast (phone photos can be huge).
@@ -252,7 +252,7 @@ function toEditable(p) {
     images: (Array.isArray(p.images) && p.images.length ? p.images : (p.image_url ? [p.image_url] : [])),
     active: p.active,
     sort_order: p.sort_order,
-    options: (Array.isArray(p.options) ? p.options : []).map((g) => ({ name: g.name || '', choicesText: (g.choices || []).join(', ') })),
+    options: (Array.isArray(p.options) ? p.options : []).map((g) => ({ name: g.name || '', choicesText: (g.choices || []).join(', '), upchargeDollars: Number(g.upcharge) > 0 ? (g.upcharge / 100).toString() : '' })),
     preview: (p.preview && typeof p.preview === 'object') ? {
       colorImages: p.preview.colorImages || {},
       logoImages: p.preview.logoImages || {},
@@ -267,7 +267,7 @@ function ProductEditor({ product, onDone }) {
   const [busy, setBusy] = useState(false)
   const set = (k, v) => setP((x) => ({ ...x, [k]: v }))
   const setGroup = (i, k, v) => setP((x) => ({ ...x, options: x.options.map((g, j) => j === i ? { ...g, [k]: v } : g) }))
-  const addGroup = (name, choicesText) => setP((x) => ({ ...x, options: [...x.options, { name, choicesText }] }))
+  const addGroup = (name, choicesText, upchargeDollars = '') => setP((x) => ({ ...x, options: [...x.options, { name, choicesText, upchargeDollars }] }))
   const rmGroup = (i) => setP((x) => ({ ...x, options: x.options.filter((_, j) => j !== i) }))
   const hasGroup = (name) => p.options.some((g) => (g.name || '').toLowerCase() === name.toLowerCase())
   const [uploading, setUploading] = useState(false)
@@ -312,6 +312,7 @@ function ProductEditor({ product, onDone }) {
           options: p.options.map((g) => ({
             name: (g.name || '').trim(),
             choices: (g.choicesText || '').split(',').map((s) => s.trim()).filter(Boolean),
+            upcharge: dollarsToCents(g.upchargeDollars),
           })).filter((g) => g.name && g.choices.length),
           preview: p.preview || { colorImages: {}, logoImages: {}, placements: {} },
         },
@@ -380,7 +381,7 @@ function ProductEditor({ product, onDone }) {
       </div>
 
       <label className="field mt">Options</label>
-      <p className="hint">Add the choices shoppers pick from — e.g. Size, Color, Sex. Leave empty for items with no choices (like a one-size hat). Separate choices with commas.</p>
+      <p className="hint">Add the choices shoppers pick from — e.g. Size, Color, Logo, Placement. Leave empty for items with no choices (like a one-size hat). Separate choices with commas. An optional upcharge is added when a choice other than “None” is picked (e.g. a back print).</p>
       {p.options.map((g, i) => (
         <div className="opt-editor" key={i}>
           <div className="row">
@@ -388,6 +389,13 @@ function ProductEditor({ product, onDone }) {
             <button className="btn danger sm" onClick={() => rmGroup(i)}>✕</button>
           </div>
           <input className="mt" value={g.choicesText} onChange={(e) => setGroup(i, 'choicesText', e.target.value)} placeholder="Choices, comma-separated (e.g. S, M, L, XL)" />
+          <div className="row mt" style={{ alignItems: 'center' }}>
+            <span className="hint" style={{ margin: 0 }}>Upcharge when chosen (optional):</span>
+            <div style={{ position: 'relative', width: 110 }}>
+              <span style={{ position: 'absolute', left: 10, top: 10, color: 'var(--muted)' }}>$</span>
+              <input type="number" step="0.01" min="0" style={{ paddingLeft: 20 }} value={g.upchargeDollars || ''} onChange={(e) => setGroup(i, 'upchargeDollars', e.target.value)} placeholder="0.00" />
+            </div>
+          </div>
         </div>
       ))}
       <div className="row mt" style={{ flexWrap: 'wrap' }}>
@@ -395,7 +403,7 @@ function ProductEditor({ product, onDone }) {
         {!hasGroup('Color') && <button className="btn ghost sm" onClick={() => addGroup('Color', 'Maroon, Gold, Black, White')}>+ Color</button>}
         {!hasGroup('Logo') && <button className="btn ghost sm" onClick={() => addGroup('Logo', 'Crest, Wordmark')}>+ Logo</button>}
         {!hasGroup('Placement') && <button className="btn ghost sm" onClick={() => addGroup('Placement', 'Left chest, Full front, Full back')}>+ Placement</button>}
-        {!hasGroup('Back Print') && <button className="btn ghost sm" onClick={() => addGroup('Back Print', 'None, Crest, Wordmark')}>+ Back print</button>}
+        {!hasGroup('Back Print') && <button className="btn ghost sm" onClick={() => addGroup('Back Print', 'None, Crest, Wordmark', '5')}>+ Back print</button>}
         <button className="btn ghost sm" onClick={() => addGroup('', '')}>+ Custom option</button>
       </div>
 
@@ -437,8 +445,9 @@ function PreviewSetup({ p, setP }) {
   const curColor = sel.color ?? colorGroup?.choices[0]
   const curLogo = sel.logo ?? logoGroup?.choices[0]
   const curPlace = placementGroup ? (sel.placement ?? placementGroup.choices[0]) : null
-  const placeKey = curPlace || 'default'
-  const coords = placements[placeKey] || DEFAULT_PLACEMENT
+  // Position + size are stored per (placement × logo) so each logo sizes independently.
+  const placeKey = placementKey(curPlace, curLogo)
+  const coords = lookupPlacement(placements, curPlace, curLogo)
 
   const setCoord = (k, v) => patch('placements', { ...placements, [placeKey]: { ...coords, [k]: Number(v) } })
 
@@ -493,7 +502,8 @@ function PreviewSetup({ p, setP }) {
                   </select>
                 </>
               )}
-              <label className="field mt">Logo position &amp; size{placementGroup ? ` for “${curPlace}”` : ''}</label>
+              <label className="field mt">Position &amp; size for “{curLogo}”{placementGroup ? ` · ${curPlace}` : ''}</label>
+              <p className="hint" style={{ margin: '2px 0 0' }}>Each logo is sized independently{placementGroup ? ' per placement' : ''}.</p>
               <div className="slider-row"><span>Left ↔ Right</span><input type="range" min="0" max="1" step="0.01" value={coords.x} onChange={(e) => setCoord('x', e.target.value)} /></div>
               <div className="slider-row"><span>Top ↕ Bottom</span><input type="range" min="0" max="1" step="0.01" value={coords.y} onChange={(e) => setCoord('y', e.target.value)} /></div>
               <div className="slider-row"><span>Size</span><input type="range" min="0.05" max="1" step="0.01" value={coords.w} onChange={(e) => setCoord('w', e.target.value)} /></div>

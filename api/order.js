@@ -59,14 +59,16 @@ export default async function handler(req, res) {
     const groups = Array.isArray(prod.options) ? prod.options : []
     const cleanOpts = {}
     const parts = []
+    let unit = prod.price_cents
     for (const g of groups) {
       const val = w.options[g?.name]
       if (val && Array.isArray(g.choices) && g.choices.includes(val) && val.toLowerCase() !== 'none') {
         cleanOpts[g.name] = val; parts.push(val)
+        if (Number(g.upcharge) > 0) unit += Math.round(Number(g.upcharge))
       }
     }
-    total += prod.price_cents * w.qty
-    lines.push({ product_id: prod.id, product_name: prod.name, size_label: parts.join(' · '), options: cleanOpts, unit_price_cents: prod.price_cents, qty: w.qty })
+    total += unit * w.qty
+    lines.push({ product_id: prod.id, product_name: prod.name, size_label: parts.join(' · '), options: cleanOpts, unit_price_cents: unit, qty: w.qty })
   }
 
   // Create the order.

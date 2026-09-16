@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../supabase'
-import { PreviewImage, DEFAULT_PLACEMENT } from '../Preview.jsx'
+import { PreviewImage, lookupPlacement } from '../Preview.jsx'
 import {
   money, loadCart, saveCart, cartCount, cartTotalCents,
   placeOrder, venmoLink,
@@ -24,7 +24,7 @@ export default function Store({ settings }) {
   }
   useEffect(() => { load() }, [])
 
-  function addToCart(product, selection, optionsText) {
+  function addToCart(product, selection, optionsText, unitPriceCents) {
     setCart((prev) => {
       const key = `${product.id}:${optionsText}`
       const existing = prev.find((i) => i.key === key)
@@ -37,7 +37,7 @@ export default function Store({ settings }) {
         product_name: product.name,
         options: selection,
         options_text: optionsText,
-        unit_price_cents: product.price_cents,
+        unit_price_cents: unitPriceCents ?? product.price_cents,
         qty: 1,
       }]
     })
@@ -172,14 +172,21 @@ function ProductCard({ product, onAdd }) {
     : (product.image_url ? [product.image_url] : []))
   const optionsText = groups.map((g) => sel[g.name]).filter(Boolean).join(' · ')
 
-  // Live overlay preview: base garment (by Color) + logo (by Logo) at placement (by Placement).
+  // Live overlay preview: base garment (by Color) + logo (by Logo) at placement (by Placement × Logo).
   const pv = product.preview || {}
   const colorImgs = pv.colorImages || {}
   const logoImgs = pv.logoImages || {}
   const base = colorImgs[sel['Color']] || images[0] || ''
   const logo = logoImgs[sel['Logo']] || null
-  const place = (pv.placements || {})[sel['Placement']] || (pv.placements || {})['default'] || DEFAULT_PLACEMENT
+  const place = lookupPlacement(pv.placements, sel['Placement'], sel['Logo'])
   const usePreview = (Object.keys(colorImgs).length > 0 || Object.keys(logoImgs).length > 0) && base
+
+  // Price adjusts for any option upcharges (e.g. adding a back print). A choice of
+  // "None" never charges. The server recomputes this authoritatively at checkout.
+  const activeUpcharges = groups
+    .filter((g) => Number(g.upcharge) > 0 && sel[g.name] && sel[g.name].toLowerCase() !== 'none')
+    .map((g) => ({ name: g.name, cents: Number(g.upcharge) }))
+  const unitPrice = product.price_cents + activeUpcharges.reduce((s, u) => s + u.cents, 0)
 
   return (
     <div className="card">
@@ -189,11 +196,14 @@ function ProductCard({ product, onAdd }) {
       <div className="card-body">
         <h3>{product.name}</h3>
         {product.description && <p className="card-desc">{product.description}</p>}
-        <div className="price">{money(product.price_cents)}</div>
+        <div className="price">{money(unitPrice)}</div>
+        {activeUpcharges.length > 0 && (
+          <div className="stock-note">includes {activeUpcharges.map((u) => `+${money(u.cents)} ${u.name}`).join(', ')}</div>
+        )}
 
         {groups.map((g) => (
           <div className="opt-group" key={g.name}>
-            <div className="opt-label">{g.name}</div>
+            <div className="opt-label">{g.name}{Number(g.upcharge) > 0 ? ` (+${money(g.upcharge)})` : ''}</div>
             <select
               value={sel[g.name] || ''}
               onChange={(e) => setSel((s) => ({ ...s, [g.name]: e.target.value }))}
@@ -205,7 +215,7 @@ function ProductCard({ product, onAdd }) {
           </div>
         ))}
 
-        <button className="btn block" onClick={() => onAdd(product, sel, optionsText)}>
+        <button className="btn block" onClick={() => onAdd(product, sel, optionsText, unitPrice)}>
           Add to cart
         </button>
       </div>
