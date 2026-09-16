@@ -73,6 +73,11 @@ export default async function handler(req, res) {
             print: !!g?.print,
           }))
           .filter((g) => g.name && g.choices.length)
+          // A "print location" must always be skippable, so guarantee a "None" choice
+          // (as the default) — this keeps the upcharge from ever being forced on a buyer.
+          .map((g) => (g.print && !g.choices.some((c) => c.toLowerCase() === 'none')
+            ? { ...g, choices: ['None', ...g.choices] }
+            : g))
         const rawPv = (p.preview && typeof p.preview === 'object') ? p.preview : {}
         const obj = (o) => (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}
         const preview = {
