@@ -273,6 +273,17 @@ function ProductEditor({ product, onDone }) {
     { name: 'Front Print', choicesText: 'None, Crest, Wordmark', upchargeDollars: '5', print: true },
     { name: 'Back Print', choicesText: 'None, Crest, Wordmark', upchargeDollars: '5', print: true },
   ] }))
+  const addApparelTemplate = () => setP((x) => {
+    const has = (n) => x.options.some((g) => (g.name || '').toLowerCase() === n.toLowerCase())
+    const t = [
+      { name: 'Size', choicesText: 'YS, YM, YL, S, M, L, XL' },
+      { name: 'Color', choicesText: 'Maroon, Gold, Black, White' },
+      { name: 'Front Print', choicesText: 'None, Crest, Wordmark', upchargeDollars: '5', print: true },
+      { name: 'Placement', choicesText: 'Left chest, Full front' },
+      { name: 'Back Print', choicesText: 'None, Crest, Wordmark', upchargeDollars: '5', print: true },
+    ]
+    return { ...x, options: [...x.options, ...t.filter((g) => !has(g.name))] }
+  })
   const rmGroup = (i) => setP((x) => ({ ...x, options: x.options.filter((_, j) => j !== i) }))
   const hasGroup = (name) => p.options.some((g) => (g.name || '').toLowerCase() === name.toLowerCase())
   const [uploading, setUploading] = useState(false)
@@ -387,7 +398,8 @@ function ProductEditor({ product, onDone }) {
       </div>
 
       <label className="field mt">Options</label>
-      <p className="hint">Add the choices shoppers pick from — e.g. Size, Color, Logo, Placement. Leave empty for items with no choices (like a one-size hat). Separate choices with commas. An optional upcharge is added when a choice other than “None” is picked (e.g. a back print).</p>
+      <p className="hint">Add the choices shoppers pick from. For a shirt, use the one-click template below — it sets up Size, Color, Front Print, Placement, and Back Print (with the +$5 second-side charge already wired). Or add options individually. Separate choices with commas.</p>
+      <button className="btn sm" onClick={addApparelTemplate} style={{ marginBottom: 4 }}>🎽 Apparel template (Size · Color · Front &amp; Back print · Placement)</button>
       {p.options.map((g, i) => (
         <div className="opt-editor" key={i}>
           <div className="row">
