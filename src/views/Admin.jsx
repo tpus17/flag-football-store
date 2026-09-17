@@ -469,9 +469,9 @@ function PreviewSetup({ p, setP }) {
   const logoChoices = (logoGroup?.choices || []).filter((c) => String(c).toLowerCase() !== 'none')
   const curLogo = sel.logo ?? logoChoices[0]
   const curPlace = placementGroup ? (sel.placement ?? placementGroup.choices[0]) : null
-  // Position + size are stored per (placement × logo) so each logo sizes independently.
-  const placeKey = placementKey(curPlace, curLogo)
-  const coords = lookupPlacement(placements, curPlace, curLogo)
+  // Position + size are stored per (color × placement × logo) so each color positions the logo independently.
+  const placeKey = placementKey(curColor, curPlace, curLogo)
+  const coords = lookupPlacement(placements, curColor, curPlace, curLogo)
 
   const setCoord = (k, v) => patch('placements', { ...placements, [placeKey]: { ...coords, [k]: Number(v) } })
 
@@ -526,8 +526,8 @@ function PreviewSetup({ p, setP }) {
                   </select>
                 </>
               )}
-              <label className="field mt">Position &amp; size for “{curLogo}”{placementGroup ? ` · ${curPlace}` : ''}</label>
-              <p className="hint" style={{ margin: '2px 0 0' }}>Each logo is sized independently{placementGroup ? ' per placement' : ''}.</p>
+              <label className="field mt">Position &amp; size — {curColor} · {curLogo}{placementGroup ? ` · ${curPlace}` : ''}</label>
+              <p className="hint" style={{ margin: '2px 0 0' }}>Set per <b>color</b> (and logo{placementGroup ? '/placement' : ''}). Switch the Color above to position the logo on each color’s photo.</p>
               <div className="slider-row"><span>Left ↔ Right</span><input type="range" min="0" max="1" step="0.01" value={coords.x} onChange={(e) => setCoord('x', e.target.value)} /></div>
               <div className="slider-row"><span>Top ↕ Bottom</span><input type="range" min="0" max="1" step="0.01" value={coords.y} onChange={(e) => setCoord('y', e.target.value)} /></div>
               <div className="slider-row"><span>Size</span><input type="range" min="0.05" max="1" step="0.01" value={coords.w} onChange={(e) => setCoord('w', e.target.value)} /></div>

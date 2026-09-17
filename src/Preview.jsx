@@ -3,16 +3,20 @@ import React from 'react'
 // Placement is stored as fractions of the image: x/y = center point, w = logo width.
 export const DEFAULT_PLACEMENT = { x: 0.5, y: 0.38, w: 0.28 }
 
-// Placements are keyed per (placement × logo) so each logo has an independent
-// size/position at each placement. Falls back to placement-only and legacy keys.
-export function placementKey(place, logo) {
-  return `${place || '_'}::${logo || '_'}`
+// Placements are keyed per (color × placement × logo) so each color can position/size
+// the logo independently. Falls back to color-agnostic and legacy keys, so existing
+// configs keep working until a color-specific position is set.
+export function placementKey(color, place, logo) {
+  return `${color || '_'}::${place || '_'}::${logo || '_'}`
 }
-export function lookupPlacement(placements, place, logo) {
+export function lookupPlacement(placements, color, place, logo) {
   const p = placements || {}
-  return p[placementKey(place, logo)]
-    || p[placementKey(place, '_')]
-    || (place && p[place])
+  const pl = place || '_'
+  const lo = logo || '_'
+  return p[placementKey(color, place, logo)]   // color + placement + logo (most specific)
+    || p[`${pl}::${lo}`]                        // legacy: placement + logo (color-agnostic)
+    || p[`${pl}::_`]                            // legacy: placement only
+    || (place && p[place])                     // oldest legacy
     || p.default
     || DEFAULT_PLACEMENT
 }

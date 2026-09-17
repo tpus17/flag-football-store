@@ -180,7 +180,7 @@ function ProductCard({ product, onAdd }) {
   const frontVal = frontName ? sel[frontName] : undefined
   const base = colorImgs[sel['Color']] || images[0] || ''
   const logo = (frontVal && frontVal.toLowerCase() !== 'none' && logoImgs[frontVal]) || null
-  const place = lookupPlacement(pv.placements, sel['Placement'], frontVal)
+  const place = lookupPlacement(pv.placements, sel['Color'], sel['Placement'], frontVal)
   const usePreview = (Object.keys(colorImgs).length > 0 || Object.keys(logoImgs).length > 0) && base
 
   const { unitCents: unitPrice, applied: activeUpcharges } = computePricing(product.price_cents, groups, sel)
