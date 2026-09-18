@@ -91,13 +91,7 @@ export default function Store({ settings }) {
         <div className={`deadline-banner ${closed ? 'closed' : ''}`}>{bannerText}</div>
       )}
 
-      <div className="hero">
-        <img className="hero-logo" src="/logo-mark.png" alt="C-Side Flag Football" />
-        <p className="hero-tag">{settings?.tagline || 'Every purchase supports the team!'}</p>
-        <GoalBar settings={settings} />
-      </div>
-
-      <div className="wrap">
+      <div className="wrap" style={{ paddingTop: 8 }}>
         {products === null ? (
           <p className="empty">Loading store…</p>
         ) : products.length === 0 ? (
