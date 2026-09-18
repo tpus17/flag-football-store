@@ -78,6 +78,10 @@ a { color: var(--accent-dark); }
   font-weight: 800;
 }
 
+/* ---------- Deadline banner ---------- */
+.deadline-banner { background: var(--gold); color: #3a0e15; text-align: center; padding: 9px 16px; font-weight: 800; font-size: 0.9rem; }
+.deadline-banner.closed { background: var(--danger); color: #fff; }
+
 /* ---------- Hero ---------- */
 .hero {
   text-align: center;

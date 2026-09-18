@@ -14,12 +14,15 @@ create table if not exists public.store_settings (
   pickup_info   text    default 'Pickup details will be arranged after your order.',
   accent_color  text    not null default '#7a1d2b',   -- C-Side garnet
   fundraiser_goal_cents int not null default 0,
+  order_deadline date,                                -- last day to order (null = no deadline)
   updated_at    timestamptz not null default now(),
   constraint only_one_row check (id = 1)
 );
 
 insert into public.store_settings (id) values (1)
   on conflict (id) do nothing;
+-- Migration for an existing project: add the order deadline column if missing.
+alter table public.store_settings add column if not exists order_deadline date;
 
 -- ---------- Products ----------
 create table if not exists public.products (

@@ -6,6 +6,13 @@ import {
   placeOrder, venmoLink, computePricing,
 } from '../lib'
 
+// Format a 'YYYY-MM-DD' deadline as e.g. "October 15" in local time.
+function formatDeadline(d) {
+  const [y, m, day] = String(d).split('-').map(Number)
+  if (!y || !m || !day) return d
+  return new Date(y, m - 1, day).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+}
+
 export default function Store({ settings }) {
   const [products, setProducts] = useState(null)
   const [cart, setCart] = useState(loadCart())
@@ -52,6 +59,9 @@ export default function Store({ settings }) {
     }))
 
   const count = cartCount(cart)
+  const deadline = settings?.order_deadline || null
+  const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD in local time
+  const closed = deadline ? todayStr > deadline : false
 
   return (
     <>
@@ -69,6 +79,14 @@ export default function Store({ settings }) {
         </div>
       </header>
 
+      {deadline && (
+        <div className={`deadline-banner ${closed ? 'closed' : ''}`}>
+          {closed
+            ? '🚫 Ordering has closed — thank you!'
+            : `🗓️ Orders close ${formatDeadline(deadline)} — get yours in before then!`}
+        </div>
+      )}
+
       <div className="hero">
         <img className="hero-logo" src="/logo-mark.png" alt="C-Side Flag Football" />
         <p className="hero-tag">{settings?.tagline || 'Every purchase supports the team!'}</p>
@@ -83,7 +101,7 @@ export default function Store({ settings }) {
         ) : (
           <div className="grid">
             {products.map((p) => (
-              <ProductCard key={p.id} product={p} onAdd={addToCart} />
+              <ProductCard key={p.id} product={p} onAdd={addToCart} closed={closed} />
             ))}
           </div>
         )}
@@ -98,6 +116,7 @@ export default function Store({ settings }) {
         <CartDrawer
           cart={cart}
           settings={settings}
+          closed={closed}
           onClose={() => setOpen(false)}
           setQty={setQty}
           onOrdered={() => { setCart([]); }}
@@ -163,7 +182,7 @@ function Carousel({ images, alt }) {
   )
 }
 
-function ProductCard({ product, onAdd }) {
+function ProductCard({ product, onAdd, closed }) {
   const groups = (Array.isArray(product.options) ? product.options : [])
     .filter((g) => g && g.name && Array.isArray(g.choices) && g.choices.length)
   const [sel, setSel] = useState(() => Object.fromEntries(groups.map((g) => [g.name, g.choices[0]])))
@@ -212,15 +231,15 @@ function ProductCard({ product, onAdd }) {
           </div>
         ))}
 
-        <button className="btn block" onClick={() => onAdd(product, sel, optionsText, unitPrice)}>
-          Add to cart
+        <button className="btn block" disabled={closed} onClick={() => onAdd(product, sel, optionsText, unitPrice)}>
+          {closed ? 'Ordering closed' : 'Add to cart'}
         </button>
       </div>
     </div>
   )
 }
 
-function CartDrawer({ cart, settings, onClose, setQty, onOrdered, reload }) {
+function CartDrawer({ cart, settings, closed, onClose, setQty, onOrdered, reload }) {
   const [stage, setStage] = useState('cart') // cart | checkout | done
   const [form, setForm] = useState({
     buyer_name: '', buyer_contact: '', contact_type: 'phone',
@@ -235,6 +254,7 @@ function CartDrawer({ cart, settings, onClose, setQty, onOrdered, reload }) {
 
   async function submit() {
     setErr('')
+    if (closed) return setErr('Ordering has closed for this store.')
     if (!form.buyer_name.trim()) return setErr('Please enter your name.')
     if (!form.buyer_contact.trim()) return setErr('Please enter a phone or email so we can reach you.')
     setBusy(true)
@@ -286,7 +306,9 @@ function CartDrawer({ cart, settings, onClose, setQty, onOrdered, reload }) {
                 <div className="summary">
                   <div className="total"><span>Total</span><span>{money(total)}</span></div>
                 </div>
-                <button className="btn block" onClick={() => setStage('checkout')}>Continue to checkout</button>
+                {closed
+                  ? <div className="err">Ordering has closed for this store.</div>
+                  : <button className="btn block" onClick={() => setStage('checkout')}>Continue to checkout</button>}
               </>
             )}
           </>

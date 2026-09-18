@@ -563,6 +563,7 @@ function Settings({ settings, onSaved }) {
           venmo_handle: s.venmo_handle, zelle_info: s.zelle_info, cash_info: s.cash_info,
           pickup_info: s.pickup_info, accent_color: s.accent_color,
           fundraiser_goal_cents: dollarsToCents(s.goal_dollars),
+          order_deadline: s.order_deadline || null,
         },
       })
       setMsg('Saved!')
@@ -600,6 +601,10 @@ function Settings({ settings, onSaved }) {
 
       <label className="field">Fundraiser goal (USD, 0 to hide)</label>
       <input type="number" min="0" value={s.goal_dollars} onChange={(e) => set('goal_dollars', e.target.value)} placeholder="1000" />
+
+      <label className="field">Order deadline (last day to order — leave blank for no deadline)</label>
+      <input type="date" value={s.order_deadline || ''} onChange={(e) => set('order_deadline', e.target.value)} />
+      <p className="hint">Shows a countdown banner on the store; after this day, ordering closes automatically.</p>
 
       {err && <div className="err mt">{err}</div>}
       {msg && <div className="mt" style={{ color: 'var(--accent-dark)', fontWeight: 700 }}>{msg}</div>}

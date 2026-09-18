@@ -129,7 +129,9 @@ export default async function handler(req, res) {
           team_name: s.team_name, tagline: s.tagline,
           venmo_handle: s.venmo_handle, zelle_info: s.zelle_info, cash_info: s.cash_info,
           pickup_info: s.pickup_info, accent_color: s.accent_color,
-          fundraiser_goal_cents: s.fundraiser_goal_cents, updated_at: new Date().toISOString(),
+          fundraiser_goal_cents: s.fundraiser_goal_cents,
+          order_deadline: s.order_deadline || null,
+          updated_at: new Date().toISOString(),
         }).eq('id', 1)
         if (error) throw error
         return res.json({ ok: true })
