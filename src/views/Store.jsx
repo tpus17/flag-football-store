@@ -61,7 +61,15 @@ export default function Store({ settings }) {
   const count = cartCount(cart)
   const deadline = settings?.order_deadline || null
   const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD in local time
-  const closed = deadline ? todayStr > deadline : false
+  const pastDeadline = deadline ? todayStr > deadline : false
+  const closed = !!settings?.orders_closed || pastDeadline
+
+  const fillDate = (t) => String(t).replace(/\{date\}/gi, deadline ? formatDeadline(deadline) : '')
+  const bannerText = closed
+    ? (settings?.banner_closed?.trim() || '🚫 Ordering has closed — thank you!')
+    : (settings?.banner_open?.trim()
+        ? fillDate(settings.banner_open)
+        : (deadline ? `🗓️ Orders close ${formatDeadline(deadline)} — get yours in before then!` : ''))
 
   return (
     <>
@@ -79,12 +87,8 @@ export default function Store({ settings }) {
         </div>
       </header>
 
-      {deadline && (
-        <div className={`deadline-banner ${closed ? 'closed' : ''}`}>
-          {closed
-            ? '🚫 Ordering has closed — thank you!'
-            : `🗓️ Orders close ${formatDeadline(deadline)} — get yours in before then!`}
-        </div>
+      {bannerText && (
+        <div className={`deadline-banner ${closed ? 'closed' : ''}`}>{bannerText}</div>
       )}
 
       <div className="hero">

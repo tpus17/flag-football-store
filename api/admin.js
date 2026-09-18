@@ -131,6 +131,9 @@ export default async function handler(req, res) {
           pickup_info: s.pickup_info, accent_color: s.accent_color,
           fundraiser_goal_cents: s.fundraiser_goal_cents,
           order_deadline: s.order_deadline || null,
+          orders_closed: !!s.orders_closed,
+          banner_open: s.banner_open || '',
+          banner_closed: s.banner_closed || '',
           updated_at: new Date().toISOString(),
         }).eq('id', 1)
         if (error) throw error

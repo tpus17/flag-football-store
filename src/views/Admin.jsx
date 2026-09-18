@@ -564,6 +564,9 @@ function Settings({ settings, onSaved }) {
           pickup_info: s.pickup_info, accent_color: s.accent_color,
           fundraiser_goal_cents: dollarsToCents(s.goal_dollars),
           order_deadline: s.order_deadline || null,
+          orders_closed: !!s.orders_closed,
+          banner_open: s.banner_open || '',
+          banner_closed: s.banner_closed || '',
         },
       })
       setMsg('Saved!')
@@ -602,9 +605,21 @@ function Settings({ settings, onSaved }) {
       <label className="field">Fundraiser goal (USD, 0 to hide)</label>
       <input type="number" min="0" value={s.goal_dollars} onChange={(e) => set('goal_dollars', e.target.value)} placeholder="1000" />
 
-      <label className="field">Order deadline (last day to order — leave blank for no deadline)</label>
+      <h3 style={{ margin: '20px 0 4px' }}>Ordering window</h3>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', margin: '6px 0' }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={!!s.orders_closed} onChange={(e) => set('orders_closed', e.target.checked)} />
+        <b>Close ordering now</b> — buyers can still browse, but can’t order
+      </label>
+
+      <label className="field">Order deadline (optional — auto-closes after this day; leave blank for none)</label>
       <input type="date" value={s.order_deadline || ''} onChange={(e) => set('order_deadline', e.target.value)} />
-      <p className="hint">Shows a countdown banner on the store; after this day, ordering closes automatically.</p>
+
+      <label className="field">Banner while OPEN (blank = auto “Orders close …”. Type <code>{'{date}'}</code> to insert the deadline)</label>
+      <input value={s.banner_open || ''} onChange={(e) => set('banner_open', e.target.value)} placeholder="🗓️ Orders close {date} — get yours in before then!" />
+
+      <label className="field">Banner while CLOSED</label>
+      <input value={s.banner_closed || ''} onChange={(e) => set('banner_closed', e.target.value)} placeholder="🚫 Ordering is closed — next window opens soon!" />
+      <p className="hint">Leave a banner blank to use the default wording. Edit these anytime you open or close a round.</p>
 
       {err && <div className="err mt">{err}</div>}
       {msg && <div className="mt" style={{ color: 'var(--accent-dark)', fontWeight: 700 }}>{msg}</div>}

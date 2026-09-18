@@ -27,13 +27,15 @@ export default async function handler(req, res) {
   if (!['venmo', 'zelle', 'cash'].includes(payment_method))
     return res.status(400).json({ error: 'Invalid payment method.' })
 
-  // Enforce the order deadline (lenient by a day so timezones near the boundary aren't rejected).
-  const { data: setg } = await admin.from('store_settings').select('order_deadline').eq('id', 1).maybeSingle()
-  if (setg?.order_deadline) {
+  // Enforce ordering window: manual close, or past the deadline (lenient by a day for timezones).
+  const { data: setg } = await admin.from('store_settings').select('order_deadline, orders_closed').eq('id', 1).maybeSingle()
+  let windowClosed = !!setg?.orders_closed
+  if (!windowClosed && setg?.order_deadline) {
     const grace = new Date(setg.order_deadline + 'T23:59:59Z')
     grace.setUTCDate(grace.getUTCDate() + 1)
-    if (new Date() > grace) return res.status(403).json({ error: 'Ordering has closed for this store.' })
+    if (new Date() > grace) windowClosed = true
   }
+  if (windowClosed) return res.status(403).json({ error: 'Ordering has closed for this store.' })
 
   // Collapse duplicate lines (same product + same chosen options) and validate quantities.
   const wanted = new Map()

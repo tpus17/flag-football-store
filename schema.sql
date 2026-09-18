@@ -15,14 +15,20 @@ create table if not exists public.store_settings (
   accent_color  text    not null default '#7a1d2b',   -- C-Side garnet
   fundraiser_goal_cents int not null default 0,
   order_deadline date,                                -- last day to order (null = no deadline)
+  orders_closed boolean not null default false,       -- manual open/close switch
+  banner_open   text not null default '',             -- custom banner while ordering is open
+  banner_closed text not null default '',             -- custom banner while ordering is closed
   updated_at    timestamptz not null default now(),
   constraint only_one_row check (id = 1)
 );
 
 insert into public.store_settings (id) values (1)
   on conflict (id) do nothing;
--- Migration for an existing project: add the order deadline column if missing.
+-- Migration for an existing project: add the ordering-window columns if missing.
 alter table public.store_settings add column if not exists order_deadline date;
+alter table public.store_settings add column if not exists orders_closed boolean not null default false;
+alter table public.store_settings add column if not exists banner_open   text not null default '';
+alter table public.store_settings add column if not exists banner_closed text not null default '';
 
 -- ---------- Products ----------
 create table if not exists public.products (
